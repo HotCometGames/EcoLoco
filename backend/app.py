@@ -28,7 +28,7 @@ def identify():
     image = data.get("image")
     location = data.get("location")
 
-    if not image or not location:
+    if not location:
         return jsonify({"error": "image and location are required"}), 400
 
     result = identify_plant(image, location)

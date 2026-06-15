@@ -4,7 +4,7 @@ export async function identifyPlant(imageData) {
   const res = await fetch(`${API_URL}/identify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageData }),
+    body: JSON.stringify({ image: imageData, location: "" , }),
   });
   return await res.json();
 }

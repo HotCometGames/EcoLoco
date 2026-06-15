@@ -8,7 +8,7 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
-def identify_plant(image_data):
+def identify_plant(image_data, location):
     """
     Takes image data and returns an identified plant name.
 
@@ -16,7 +16,21 @@ def identify_plant(image_data):
     :call inat get_plant_requests to see if its native, and then once it is confirmed native ask gemini for possible actions w impact
     :return: Identified plant name, native or not, confidence info, and possible actions w impact
     """
-    pass
+    return {
+        "plant_name": "White Oak",
+        "is_native": True,
+        "confidence": 0.92,
+        "actions": [
+            {
+                "action": "Plant in open areas",
+                "impact": "Supports over 500 species of wildlife"
+            },
+            {
+                "action": "Avoid pruning in spring",
+                "impact": "Prevents oak wilt disease spread"
+            }
+        ]
+    }
 
 
 def get_plant_recommendations(location: str):
