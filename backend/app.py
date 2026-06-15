@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
-from services.gemini_service import identify_plant, get_recommendations
+from services.gemini_service import identify_plant, get_plant_recommendations
 from services.inat_service import get_plant_requests, get_local_plants
 
 load_dotenv()
@@ -43,9 +43,9 @@ def recommend():
     if not location:
         return jsonify({"error": "location is required"}), 400
 
-    result = get_recommendations(location)
+    result = result = get_plant_recommendations(location)
     return jsonify({"result": result})
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')
