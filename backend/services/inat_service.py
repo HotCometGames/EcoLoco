@@ -7,7 +7,7 @@ load_dotenv()
 INAT_BASE_URL = "https://api.inaturalist.org/v1"
 
 
-def get_plant_location(plant_name: str):
+def get_plant_requests(plant_name: str):
     """
     Takes a plant name and returns its known location(s).
     
@@ -17,7 +17,7 @@ def get_plant_location(plant_name: str):
     pass
 
 
-def get_plants_by_location(location: str):
+def get_local_plants(location: str):
     """
     Takes a location and returns a list of native plants found there.
     
