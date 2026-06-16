@@ -7,7 +7,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "EcoLoco needs camera access so you can take photos of plants to identify them."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +24,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "EcoLoco needs camera access so you can take photos of plants to identify them."
+        }
+      ]
     ]
   }
 }

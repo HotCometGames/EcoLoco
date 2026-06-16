@@ -7,18 +7,34 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  TextInput,
 } from 'react-native';
-import { Asset } from 'expo-asset';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
 import { identifyPlant } from '../services/geminiService';
-
-// swap this for any image in your assets folder
-const TEST_IMAGE = require('../../assets/icon.png');
 
 export default function IdentificationScreen() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [photo, setPhoto] = useState(null);
+  const [zipCode, setZipCode] = useState('');
+
+  async function handleTakePhoto() {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      setError('Camera permission is required to take a photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      base64: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setPhoto(result.assets[0]);
+    }
+  }
 
   async function handleTest() {
     setLoading(true);
@@ -26,15 +42,11 @@ export default function IdentificationScreen() {
     setError(null);
 
     try {
-      // load the local asset and convert to base64
-      const asset = await Asset.fromModule(TEST_IMAGE).downloadAsync();
-      const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
-        encoding: 'base64',  // ← use the string directly instead of FileSystem.EncodingType.Base64
-      });
+      const base64 = photo.base64;
 
       console.log('base64 length:', base64.length); // confirm it loaded
 
-      const data = await identifyPlant(base64, 'Chicago, IL');
+      const data = await identifyPlant(base64, zipCode);
       console.log('result:', data);
       setResult(data.result);
     } catch (err) {
@@ -49,9 +61,27 @@ export default function IdentificationScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Test Identification</Text>
 
-      <Image source={TEST_IMAGE} style={styles.testImage} />
+      {photo && <Image source={{ uri: photo.uri }} style={styles.testImage} />}
 
-      <TouchableOpacity style={styles.button} onPress={handleTest}>
+      <TouchableOpacity style={styles.button} onPress={handleTakePhoto}>
+        <Text style={styles.buttonText}>Take Photo</Text>
+      </TouchableOpacity>
+
+      <TextInput
+        style={styles.input}
+        value={zipCode}
+        onChangeText={(text) => setZipCode(text.replace(/[^0-9]/g, '').slice(0, 5))}
+        placeholder="Enter ZIP code"
+        placeholderTextColor="#888"
+        keyboardType="numeric"
+        maxLength={5}
+      />
+
+      <TouchableOpacity
+        style={[styles.button, (!photo || zipCode.length === 0) && styles.buttonDisabled]}
+        onPress={handleTest}
+        disabled={!photo || zipCode.length === 0}
+      >
         <Text style={styles.buttonText}>Run Identify</Text>
       </TouchableOpacity>
 
@@ -81,8 +111,17 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingBottom: 48 },
   title: { fontSize: 24, fontWeight: '700', color: '#e0e0e0', marginBottom: 20 },
   testImage: { width: '100%', height: 200, borderRadius: 12, marginBottom: 20, resizeMode: 'cover' },
-  button: { backgroundColor: '#ff6b35', padding: 14, borderRadius: 10, alignItems: 'center' },
+  button: { backgroundColor: '#ff6b35', padding: 14, borderRadius: 10, alignItems: 'center', marginBottom: 16 },
+  buttonDisabled: { backgroundColor: '#7a4029' },
   buttonText: { color: '#e0e0e0', fontWeight: '600', fontSize: 16 },
+  input: {
+    backgroundColor: '#16213e',
+    color: '#e0e0e0',
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 16,
+    marginBottom: 16,
+  },
   error: { color: '#ff4444', marginTop: 16, fontSize: 14 },
   resultCard: { backgroundColor: '#16213e', borderRadius: 14, padding: 20, marginTop: 24, gap: 10 },
   plantName: { fontSize: 22, fontWeight: '700', color: '#e0e0e0' },
