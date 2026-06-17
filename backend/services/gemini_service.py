@@ -1,35 +1,60 @@
-import google.generativeai as genai
+import json
+from openai import OpenAI
 from dotenv import load_dotenv
 from services.inat_service import get_plant_requests
 import os
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 def identify_plant(image_data, location):
-    """
-    Takes image data and returns an identified plant name.
-
-    :param image_data: Image file or base64 encoded image, possible string
-    :call inat get_plant_requests to see if its native, and then once it is confirmed native ask gemini for possible actions w impact
-    :return: Identified plant name, native or not, confidence info, and possible actions w impact
-    """
-    return {
-        "plant_name": "White Oak",
-        "is_native": True,
-        "confidence": 0.92,
-        "actions": [
+    identify_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
             {
-                "action": "Plant in open areas",
-                "impact": "Supports over 500 species of wildlife"
-            },
-            {
-                "action": "Avoid pruning in spring",
-                "impact": "Prevents oak wilt disease spread"
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_data}"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "Identify the plant in this image. Respond only in JSON with no markdown, no backticks. Format: {\"plant_name\": \"...\", \"confidence\": 0.0}"
+                    }
+                ]
             }
         ]
+    )
+
+    identify_data = json.loads(identify_response.choices[0].message.content)
+    plant_name = identify_data["plant_name"]
+    confidence = identify_data["confidence"]
+
+    is_native = True
+
+    actions = []
+    if is_native:
+        actions_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"The plant '{plant_name}' is native to {location}. Give 2 specific, practical actions a person can take involving planting or caring for this or companion plants to benefit the local ecosystem. Each action should name a specific plant or technique and explain the direct environmental benefit in one sentence. Respond only in JSON with no markdown, no backticks. Format: [{{\"action\": \"...\", \"impact\": \"...\"}}]"
+                }
+            ]
+        )
+        actions = json.loads(actions_response.choices[0].message.content)
+
+    return {
+        "plant_name": plant_name,
+        "is_native": is_native,
+        "confidence": confidence,
+        "actions": actions
     }
 
 
