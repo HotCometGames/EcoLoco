@@ -1,4 +1,5 @@
 import requests
+import os
 
 def get_plant_requests(species_name, limit=100):
     # fetches coordinates of given plant species from iNaturalist
@@ -8,7 +9,7 @@ def get_plant_requests(species_name, limit=100):
     fields_requested = {
 
         "location" : True,
-        "place" : True,
+        "place_guess" : True,
         "observed_on_string" : True
     }
 
