@@ -48,3 +48,17 @@ def get_plant_requests(species_name, limit=100):
     except requests.exceptions.RequestException as e:
         print(f"error fetching data from iNaturalist: {e}")
         return []
+    
+if __name__ == "__main__":
+    #test 1
+    test_plant = "Monstera deliciosa"
+    print(f"testing inaturalist API with: '{test_plant}'...")
+    
+    results = get_plant_requests(test_plant, limit=3)
+    
+    print(f"\nfound {len(results)} results:")
+    for i, loc in enumerate(results, 1):
+        print(f"--- Result #{i} ---")
+        print(f"Coordinates: {loc['latitude']}, {loc['longitude']}")
+        print(f"Location Guess: {loc['place_guess']}")
+        print(f"Date Observed: {loc['observed_on']}")
