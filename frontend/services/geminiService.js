@@ -10,7 +10,7 @@ export async function identifyPlant(imageData, location) {
 }
 
 export async function getPlantRecommendations(location) {
-  const res = await fetch(`${API_URL}/recommendations`, {
+  const res = await fetch(`${API_URL}/recommend`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ location }),

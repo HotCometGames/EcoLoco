@@ -62,8 +62,17 @@ def get_plant_recommendations(location: str):
     """
     Takes a location and returns AI generated native plant recommendations.
 
-    :param location: Location string (city, region, etc.)
+    :param location: Location string (Area code)
     :return: A problem, an action, and the impact
     """
-    pass
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "user",
+                "content": f"For the area code {location}, identify 3 local environmental problems and recommend a specific native plant to address each one. For each, give a specific actionable step using that plant. Respond only in JSON with no markdown, no backticks. Format: [{{\"problem\": \"...\", \"action\": \"...\", \"impact\": \"...\"}}]"
+            }
+        ]
+    )
 
+    return json.loads(response.choices[0].message.content)
