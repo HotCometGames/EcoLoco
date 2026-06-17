@@ -2,14 +2,14 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from services.gemini_service import identify_plant, get_plant_recommendations
-from services.inat_service import get_plant_requests, get_local_plants
+from services.inat_service import get_plant_requests #get_local_plants
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-
+'''
 @app.route("/get_local_plants_endpoints", methods=["POST"])
 def get_local_plants_endpoint():
     data = request.get_json()
@@ -20,6 +20,7 @@ def get_local_plants_endpoint():
 
     result = get_local_plants(location)
     return jsonify({"result": result})
+    '''
 
 
 @app.route("/identify", methods=["POST"])
