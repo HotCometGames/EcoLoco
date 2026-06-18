@@ -30,7 +30,8 @@
         {
           "cameraPermission": "EcoLoco needs camera access so you can take photos of plants to identify them."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

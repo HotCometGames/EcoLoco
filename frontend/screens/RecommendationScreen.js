@@ -1,30 +1,144 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  TextInput,
-  Alert,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  ActivityIndicator, TextInput, Alert, Image,
+  useWindowDimensions, Animated, Easing,
 } from 'react-native';
+import { useFonts } from 'expo-font';
+import { Fraunces_700Bold } from '@expo-google-fonts/fraunces';
+import { DMSans_400Regular, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { getPlantRecommendations } from '../services/geminiService';
 
-export default function RecommendationScreen() {
+const CREAM      = '#f5f0e8';
+const DARK_GREEN = '#1e3a1e';
+const SOFT_GREEN = '#4a7a3a';
+const LIGHT_BG   = '#eaeee6';
+const TEXT_BODY  = '#4a4a3a';
+const TEXT_MUTED = '#7a7a6a';
+const BORDER     = '#d4cfc4';
+const CARD_BG    = '#fefcf8';
+
+const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1);
+const LOGO = require('../../assets/EcoLoco_logo.png');
+
+// ─── Bouncing dots loader ────────────────────────────────────────────────────
+function LoadingDots({ message }) {
+  const d0 = useRef(new Animated.Value(0)).current;
+  const d1 = useRef(new Animated.Value(0)).current;
+  const d2 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const dot = (v, delay) => Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(v, { toValue: -9, duration: 280, easing: EASE_OUT, useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0,  duration: 280, easing: EASE_OUT, useNativeDriver: true }),
+        Animated.delay(500),
+      ])
+    );
+    Animated.parallel([dot(d0, 0), dot(d1, 160), dot(d2, 320)]).start();
+  }, []);
+
+  return (
+    <View style={ld.wrap}>
+      <View style={ld.dots}>
+        {[d0, d1, d2].map((d, i) => (
+          <Animated.View key={i} style={[ld.dot, { transform: [{ translateY: d }] }]} />
+        ))}
+      </View>
+      <Text style={ld.text}>{message}</Text>
+    </View>
+  );
+}
+
+const ld = StyleSheet.create({
+  wrap: { alignItems: 'center', paddingVertical: 36, gap: 14 },
+  dots: { flexDirection: 'row', gap: 8, height: 20, alignItems: 'flex-end' },
+  dot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: SOFT_GREEN },
+  text: { fontSize: 13, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED },
+});
+
+// ─── Skeleton card ───────────────────────────────────────────────────────────
+function SkeletonCard({ index }) {
+  const opacity = useRef(new Animated.Value(0.55)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1,    duration: 750, delay: index * 180, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.55, duration: 750, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  return (
+    <Animated.View style={[styles.card, { opacity }]}>
+      <View style={[styles.skLine, { width: 58, height: 9, marginBottom: 11 }]} />
+      <View style={[styles.skLine, { width: '72%', height: 20, marginBottom: 18 }]} />
+      <View style={styles.cardDivider} />
+      <View style={[styles.skLine, { width: 50, height: 9, marginBottom: 10, marginTop: 2 }]} />
+      <View style={[styles.skLine, { width: '90%', height: 13, marginBottom: 7 }]} />
+      <View style={[styles.skLine, { width: '62%', height: 13, marginBottom: 18 }]} />
+      <View style={styles.cardDivider} />
+      <View style={[styles.skLine, { width: 46, height: 9, marginBottom: 10, marginTop: 2 }]} />
+      <View style={[styles.skLine, { width: '82%', height: 13 }]} />
+    </Animated.View>
+  );
+}
+
+// ─── Animated result card ────────────────────────────────────────────────────
+function AnimatedCard({ item, index }) {
+  const opacity    = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(22)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity,    { toValue: 1, duration: 520, delay: index * 110, easing: EASE_OUT, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 520, delay: index * 110, easing: EASE_OUT, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[styles.card, { opacity, transform: [{ translateY }] }]}>
+      <View style={styles.cardTopRow}>
+        <Text style={styles.cardLabel}>PROBLEM</Text>
+        <Text style={styles.cardNum}>{String(index + 1).padStart(2, '0')}</Text>
+      </View>
+      <Text style={styles.problemText}>{item.problem}</Text>
+
+      <View style={styles.cardDivider} />
+
+      <Text style={styles.cardLabel}>ACTION</Text>
+      <Text style={styles.actionText}>{item.action}</Text>
+
+      <View style={styles.cardDivider} />
+
+      <Text style={styles.cardLabel}>IMPACT</Text>
+      <Text style={styles.impactText}>{item.impact}</Text>
+    </Animated.View>
+  );
+}
+
+// ─── Screen ──────────────────────────────────────────────────────────────────
+export default function RecommendationScreen({ navigation }) {
   const [zipCode, setZipCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
 
+  const { width } = useWindowDimensions();
+  const maxWidth  = Math.min(width, 960);
+
+  const [fontsLoaded] = useFonts({ Fraunces_700Bold, DMSans_400Regular, DMSans_700Bold });
+
   async function handleRecommend() {
     if (zipCode.length !== 5 || isNaN(zipCode)) {
-      Alert.alert('Invalid', 'Please enter a valid 5-digit zip code.');
+      Alert.alert('Invalid ZIP', 'Please enter a valid 5-digit ZIP code.');
       return;
     }
-
     setLoading(true);
     setResults(null);
-
     try {
       const data = await getPlantRecommendations(zipCode);
       setResults(data.result);
@@ -36,83 +150,142 @@ export default function RecommendationScreen() {
     }
   }
 
+  if (!fontsLoaded) return <View style={styles.container} />;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Plant Recommendations</Text>
-      <Text style={styles.subtitle}>Enter your zip code to get native plant recommendations for your area</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <View style={[styles.inner, { width: maxWidth }]}>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Enter zip code"
-        placeholderTextColor="#555"
-        keyboardType="numeric"
-        maxLength={5}
-        value={zipCode}
-        onChangeText={setZipCode}
-      />
-
-      <TouchableOpacity style={styles.button} onPress={handleRecommend}>
-        <Text style={styles.buttonText}>Get Recommendations</Text>
-      </TouchableOpacity>
-
-      {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#ff6b35" />
-          <Text style={styles.loadingText}>Finding plants for your area...</Text>
-        </View>
-      )}
-
-      {results && results.map((item, index) => (
-        <View key={index} style={styles.card}>
-          <View style={styles.problemRow}>
-            <Text style={styles.problemLabel}>Problem</Text>
-            <Text style={styles.problemText}>{item.problem}</Text>
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View style={styles.logoRow}>
+            <Image source={LOGO} style={styles.logoImg} />
+            <Text style={styles.logoText}>EcoLoco</Text>
           </View>
-          <View style={styles.divider} />
-          <Text style={styles.actionText}>{item.action}</Text>
-          <Text style={styles.impactText}>{item.impact}</Text>
+          <View style={styles.navLinks}>
+            <TouchableOpacity onPress={() => navigation?.navigate('Camera')}>
+              <Text style={styles.navLink}>Identification</Text>
+            </TouchableOpacity>
+            <View style={styles.navLinkActive}>
+              <Text style={styles.navLinkActiveText}>Recommendation</Text>
+              <View style={styles.navUnderline} />
+            </View>
+          </View>
         </View>
-      ))}
+
+        <View style={styles.divider} />
+
+        {/* ── Title ── */}
+        <View style={styles.titleSection}>
+          <Text style={styles.pageTitle}>Recommendations</Text>
+          <Text style={styles.pageSubtitle}>
+            Enter your ZIP code to get native plant recommendations for your area.
+          </Text>
+        </View>
+
+        {/* ── Input + Button ── */}
+        <View style={styles.inputSection}>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter ZIP code"
+            placeholderTextColor={TEXT_MUTED}
+            keyboardType="numeric"
+            maxLength={5}
+            value={zipCode}
+            onChangeText={setZipCode}
+          />
+          <TouchableOpacity
+            style={[styles.btn, (zipCode.length !== 5 || loading) && styles.btnDisabled]}
+            onPress={handleRecommend}
+            disabled={loading || zipCode.length !== 5}
+          >
+            {loading
+              ? <ActivityIndicator color={CREAM} size="small" />
+              : <Text style={styles.btnText}>Get Recommendations</Text>
+            }
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Loading state ── */}
+        {loading && (
+          <View style={styles.resultsSection}>
+            <LoadingDots message="Finding plants for your area…" />
+            {[0, 1, 2].map(i => <SkeletonCard key={i} index={i} />)}
+          </View>
+        )}
+
+        {/* ── Results ── */}
+        {results && !loading && (
+          <View style={styles.resultsSection}>
+            <View style={styles.resultsHeader}>
+              <Text style={styles.resultsTitle}>Results</Text>
+              <Text style={styles.resultsCount}>{results.length} recommendations</Text>
+            </View>
+            {results.map((item, index) => (
+              <AnimatedCard key={index} item={item} index={index} />
+            ))}
+          </View>
+        )}
+
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
-  content: { padding: 24, paddingBottom: 48 },
-  title: { fontSize: 26, fontWeight: '700', color: '#e0e0e0', marginBottom: 6 },
-  subtitle: { fontSize: 13, color: '#888', marginBottom: 24, lineHeight: 18 },
+  container: { flex: 1, backgroundColor: CREAM },
+  scrollContent: { alignItems: 'center' },
+  inner: { alignSelf: 'center' },
+
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 24, paddingTop: 52, paddingBottom: 16,
+  },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logoImg: { width: 40, height: 40, resizeMode: 'contain' },
+  logoText: { fontSize: 20, fontFamily: 'Fraunces_700Bold', color: DARK_GREEN, letterSpacing: 0.3 },
+  navLinks: { flexDirection: 'row', gap: 20, alignItems: 'center' },
+  navLink: { fontSize: 12, fontFamily: 'DMSans_400Regular', color: TEXT_BODY },
+  navLinkActive: { alignItems: 'center', gap: 4 },
+  navLinkActiveText: { fontSize: 12, fontFamily: 'DMSans_700Bold', color: DARK_GREEN },
+  navUnderline: { height: 2, width: '100%', backgroundColor: DARK_GREEN, borderRadius: 1 },
+
+  divider: { height: 1, backgroundColor: BORDER },
+
+  titleSection: { alignItems: 'center', paddingTop: 32, paddingBottom: 24, paddingHorizontal: 24 },
+  pageTitle: { fontSize: 34, fontFamily: 'Fraunces_700Bold', color: DARK_GREEN, marginBottom: 6 },
+  pageSubtitle: { fontSize: 13, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED, textAlign: 'center' },
+
+  inputSection: { paddingHorizontal: 20, gap: 12, marginBottom: 8 },
   input: {
-    backgroundColor: '#16213e',
-    color: '#e0e0e0',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#2a2a4e',
+    backgroundColor: '#fff', color: TEXT_BODY, borderRadius: 10,
+    padding: 13, fontSize: 14, fontFamily: 'DMSans_400Regular',
+    borderWidth: 1, borderColor: BORDER,
   },
-  button: {
-    backgroundColor: '#ff6b35',
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 32,
+  btn: { backgroundColor: DARK_GREEN, borderRadius: 10, paddingVertical: 15, alignItems: 'center' },
+  btnDisabled: { opacity: 0.4 },
+  btnText: { fontSize: 15, fontFamily: 'DMSans_700Bold', color: CREAM },
+
+  resultsSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 48 },
+  resultsHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'baseline', marginBottom: 20,
   },
-  buttonText: { color: '#e0e0e0', fontWeight: '600', fontSize: 16 },
-  loadingContainer: { alignItems: 'center', gap: 12, marginBottom: 24 },
-  loadingText: { color: '#888', fontSize: 14 },
+  resultsTitle: { fontSize: 26, fontFamily: 'Fraunces_700Bold', color: DARK_GREEN },
+  resultsCount: { fontSize: 12, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED },
+
   card: {
-    backgroundColor: '#16213e',
-    borderRadius: 14,
-    padding: 18,
-    marginBottom: 16,
-    gap: 10,
+    backgroundColor: CARD_BG, borderRadius: 16,
+    borderWidth: 1, borderColor: BORDER,
+    padding: 20, marginBottom: 14,
   },
-  problemRow: { gap: 4 },
-  problemLabel: { color: '#ff6b35', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
-  problemText: { color: '#e0e0e0', fontSize: 15, fontWeight: '600' },
-  divider: { height: 1, backgroundColor: '#2a2a4e' },
-  actionText: { color: '#e0e0e0', fontSize: 14, fontWeight: '600' },
-  impactText: { color: '#888', fontSize: 13, lineHeight: 18 },
+  cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  cardNum: { fontSize: 11, fontFamily: 'DMSans_400Regular', color: BORDER },
+  cardLabel: { fontSize: 10, fontFamily: 'DMSans_700Bold', color: SOFT_GREEN, letterSpacing: 1.5 },
+  cardDivider: { height: 1, backgroundColor: LIGHT_BG, marginVertical: 12 },
+  problemText: { fontSize: 19, fontFamily: 'Fraunces_700Bold', color: DARK_GREEN, lineHeight: 27 },
+  actionText: { fontSize: 14, fontFamily: 'DMSans_400Regular', color: TEXT_BODY, lineHeight: 22, marginTop: 5 },
+  impactText: { fontSize: 13, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED, lineHeight: 20, marginTop: 5 },
+
+  skLine: { backgroundColor: LIGHT_BG, borderRadius: 4 },
 });

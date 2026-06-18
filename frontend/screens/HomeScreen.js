@@ -1,84 +1,449 @@
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native'
+import React, { useRef, useEffect } from 'react'
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Animated,
+  Easing,
+  useWindowDimensions,
+} from 'react-native'
+import { useFonts } from 'expo-font'
+import {
+  Fraunces_400Regular,
+  Fraunces_700Bold,
+  Fraunces_700Bold_Italic,
+} from '@expo-google-fonts/fraunces'
+import {
+  DMSans_400Regular,
+  DMSans_700Bold,
+} from '@expo-google-fonts/dm-sans'
 
-const PLANTS = [
-  { id: 1, name: 'Purple Coneflower', sci: 'Echinacea purpurea', status: 'Native' },
-  { id: 2, name: 'Big Bluestem', sci: 'Andropogon gerardi', status: 'Native' },
-  { id: 3, name: 'Butterfly Weed', sci: 'Asclepias tuberosa', status: 'Native' },
-  { id: 4, name: 'Black-eyed Susan', sci: 'Rudbeckia hirta', status: 'Native' },
-]
+const CREAM      = '#f5f0e8'
+const DARK_GREEN = '#1e3a1e'
+const SOFT_GREEN = '#4a7a3a'
+const TEXT_BODY  = '#4a4a3a'
+const TEXT_MUTED = '#7a7a6a'
+const BORDER     = '#d4cfc4'
+const LIGHT_BG   = '#eaeee6'
 
-export default function HomeScreen() {
+const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1)  // fast-out, ease-in-out feel
+
+const LOGO            = require('../../assets/EcoLoco_logo.png')
+const IMG_SCANNING    = require('../../assets/EcoLoco_Scanning_Plant.png')
+const IMG_POLLINATORS = require('../../assets/EcoLoco_support_polinators.png')
+const IMG_GROW        = require('../../assets/GrowWithConfidence_Ecoloco.png')
+const IMG_ECOSYSTEM   = require('../../assets/EcoLoco_ecosystem.png')
+
+// ─── Staggered mount fade-up ──────────────────────────────────────────────────
+function useFadeUp(delay = 0) {
+  const opacity    = useRef(new Animated.Value(0)).current
+  const translateY = useRef(new Animated.Value(28)).current
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity,    { toValue: 1, duration: 680, delay, easing: EASE_OUT, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 680, delay, easing: EASE_OUT, useNativeDriver: true }),
+    ]).start()
+  }, [])
+
+  return { opacity, transform: [{ translateY }] }
+}
+
+// ─── Animated press button ────────────────────────────────────────────────────
+function AnimButton({ style, textStyle, label, onPress }) {
+  const scale = useRef(new Animated.Value(1)).current
+  const pressIn  = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 50 }).start()
+  const pressOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 24 }).start()
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <TouchableOpacity onPress={onPress} onPressIn={pressIn} onPressOut={pressOut} activeOpacity={1}>
+      <Animated.View style={[style, { transform: [{ scale }] }]}>
+        <Text style={textStyle}>{label}</Text>
+      </Animated.View>
+    </TouchableOpacity>
+  )
+}
 
-      <View style={styles.header}>
-        <Text style={styles.appName}>ROOTWISE</Text>
-        <Text style={styles.greeting}>Plants near{'\n'}you, today.</Text>
-        <View style={styles.locationRow}>
-          <View style={styles.locDot} />
-          <Text style={styles.locText}>Wheeling, Illinois</Text>
-        </View>
-      </View>
+// ─── Ornament that draws itself in ────────────────────────────────────────────
+function Ornament({ delay = 0 }) {
+  const scaleX  = useRef(new Animated.Value(0)).current
+  const opacity = useRef(new Animated.Value(0)).current
 
-      <View style={styles.searchBar}>
-        <Text style={styles.searchText}>Search native plants...</Text>
-      </View>
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(scaleX, {
+        toValue: 1, duration: 800, delay, easing: EASE_OUT, useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1, duration: 400, delay, useNativeDriver: true,
+      }),
+    ]).start()
+  }, [])
 
-      <Text style={styles.sectionLabel}>PLANT OF THE DAY</Text>
-      <View style={styles.featured}>
-        <View style={styles.featuredIcon}>
-          <Text style={styles.featuredEmoji}>🌿</Text>
-        </View>
-        <View>
-          <Text style={styles.featuredName}>Wild Bergamot</Text>
-          <Text style={styles.featuredSci}>Monarda fistulosa</Text>
-          <View style={styles.badgeRow}>
-            <View style={styles.badgeNative}><Text style={styles.badgeNativeText}>Native</Text></View>
-            <View style={styles.badgeLow}><Text style={styles.badgeLowText}>Low danger</Text></View>
+  return (
+    <Animated.View style={[styles.ornamentRow, { opacity, transform: [{ scaleX }] }]}>
+      <View style={styles.ornamentLine} />
+      <View style={styles.ornamentDiamond} />
+      <View style={styles.ornamentLine} />
+    </Animated.View>
+  )
+}
+
+// ─── Section divider ──────────────────────────────────────────────────────────
+function Divider() {
+  return <View style={styles.dividerLine} />
+}
+
+// ─── Feature row ─────────────────────────────────────────────────────────────
+function FeatureRow({ image, heading, body, linkText, onLinkPress, imgHeight, reverse, animStyle }) {
+  const imgBlock = (
+    <View style={[styles.featureImgWrap, { height: imgHeight }]}>
+      {image
+        ? <Image source={image} style={styles.featureImg} resizeMode="cover" />
+        : <View style={styles.imgFallback} />
+      }
+    </View>
+  )
+  const textBlock = (
+    <View style={[styles.featureText, reverse && { paddingLeft: 4 }]}>
+      <Text style={styles.featureHeading}>{heading}</Text>
+      <Text style={styles.featureBody}>{body}</Text>
+      {linkText && (
+        <TouchableOpacity onPress={onLinkPress} style={styles.linkBtn}>
+          <Text style={styles.featureLink}>{linkText}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  )
+  return (
+    <Animated.View style={[styles.featureRow, animStyle]}>
+      {reverse ? <>{textBlock}{imgBlock}</> : <>{imgBlock}{textBlock}</>}
+    </Animated.View>
+  )
+}
+
+// ─── HomeScreen ───────────────────────────────────────────────────────────────
+export default function HomeScreen({ navigation }) {
+  const { width } = useWindowDimensions()
+  const isWide   = width > 600
+  const imgHeight = isWide ? 280 : 190
+  const maxWidth  = Math.min(width, 960)
+
+  // Hero words animate on mount
+  const word1 = useRef(new Animated.Value(0)).current   // "Welcome to "
+  const word2 = useRef(new Animated.Value(0)).current   // "EcoLoco"
+  const w1Y   = useRef(new Animated.Value(14)).current
+  const w2Y   = useRef(new Animated.Value(14)).current
+
+  useEffect(() => {
+    Animated.stagger(180, [
+      Animated.parallel([
+        Animated.timing(word1, { toValue: 1, duration: 600, easing: EASE_OUT, useNativeDriver: true }),
+        Animated.timing(w1Y,   { toValue: 0, duration: 600, easing: EASE_OUT, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(word2, { toValue: 1, duration: 600, easing: EASE_OUT, useNativeDriver: true }),
+        Animated.timing(w2Y,   { toValue: 0, duration: 600, easing: EASE_OUT, useNativeDriver: true }),
+      ]),
+    ]).start()
+  }, [])
+
+  const s1Anim = useFadeUp(200)
+  const s2Anim = useFadeUp(320)
+  const s3Anim = useFadeUp(440)
+  const s4Anim = useFadeUp(560)
+
+  const [fontsLoaded] = useFonts({
+    Fraunces_400Regular,
+    Fraunces_700Bold,
+    Fraunces_700Bold_Italic,
+    DMSans_400Regular,
+    DMSans_700Bold,
+  })
+
+  if (!fontsLoaded) return <View style={styles.container} />
+
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={[styles.inner, { width: maxWidth }]}>
+
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View style={styles.logoRow}>
+            <Image source={LOGO} style={styles.logoImg} />
+            <Text style={styles.logoText}>EcoLoco</Text>
+          </View>
+          <View style={styles.navLinks}>
+            <TouchableOpacity onPress={() => navigation?.navigate('Camera')}>
+              <Text style={styles.navLink}>Identification</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation?.navigate('Recommend')}>
+              <Text style={styles.navLink}>Recommendations</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </View>
 
-      <Text style={styles.sectionLabel}>NEARBY NATIVES</Text>
-      <View style={styles.grid}>
-        {PLANTS.map(plant => (
-          <TouchableOpacity key={plant.id} style={styles.card}>
-            <Text style={styles.cardName}>{plant.name}</Text>
-            <Text style={styles.cardSci}>{plant.sci}</Text>
-            <View style={styles.badgeNative}>
-              <Text style={styles.badgeNativeText}>{plant.status}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
+        <Divider />
 
+        {/* ── Hero ── */}
+        <View style={styles.hero}>
+          <View style={styles.heroHeadingRow}>
+            <Animated.Text style={[styles.heroHeading, { opacity: word1, transform: [{ translateY: w1Y }] }]}>
+              {'Welcome to '}
+            </Animated.Text>
+            <Animated.Text style={[styles.heroHeadingItalic, { opacity: word2, transform: [{ translateY: w2Y }] }]}>
+              EcoLoco
+            </Animated.Text>
+          </View>
+          <Ornament delay={500} />
+        </View>
+
+        <Divider />
+
+        {/* ── Section 1 ── */}
+        <FeatureRow
+          animStyle={s1Anim}
+          image={IMG_SCANNING}
+          imgHeight={imgHeight}
+          heading="Identify Plants"
+          body="Uncover information about plant type, native region, growing conditions, the pollinators it attracts, and whether it helps or hurts your local ecosystem, all from a single photo taken on your campus."
+          linkText="Go to Identification →"
+          onLinkPress={() => navigation?.navigate('Camera')}
+        />
+
+        <Divider />
+
+        {/* ── Section 2 ── */}
+        <FeatureRow
+          reverse
+          animStyle={s2Anim}
+          image={IMG_POLLINATORS}
+          imgHeight={imgHeight}
+          heading="Support Pollinators"
+          body="In recent years, pollinators and wildlife of all kinds have become threatened by habitat loss, climate change, and the spread of non-native species. By identifying what's growing on your school grounds and planting natives where it counts, your eco-club can make a real, measurable difference right where you are."
+        />
+
+        <Divider />
+
+        {/* ── Section 3 ── */}
+        <FeatureRow
+          animStyle={s3Anim}
+          image={IMG_GROW}
+          imgHeight={imgHeight}
+          heading="Grow with Confidence"
+          body="EcoLoco gives recommendations tailored to your school's location and conditions. Every suggestion is ranked by real ecological impact, so your club can choose the plants that do the most good while prioritizing species that are realistic to grow and care for."
+          linkText="Go to Recommendation →"
+          onLinkPress={() => navigation?.navigate('Recommend')}
+        />
+
+        <Divider />
+
+        {/* ── Section 4 ── */}
+        <FeatureRow
+          reverse
+          animStyle={s4Anim}
+          image={IMG_ECOSYSTEM}
+          imgHeight={imgHeight}
+          heading="Help Your Ecosystem"
+          body="While the climate crisis can feel global and overwhelming, EcoLoco brings it down to your own campus. Focusing on local impact lets students see the direct effects of their work, where one native oak can support over 500 butterfly and moth species and bring an entire food web back to life."
+        />
+
+        <View style={styles.footerDivider} />
+
+        {/* ── Footer ── */}
+        <View style={styles.footer}>
+          <Image source={LOGO} style={styles.footerLogo} />
+          <Text style={styles.footerText}>EcoLoco · Growing communities, one plant at a time</Text>
+        </View>
+
+      </View>
     </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0d1f0f' },
-  header: { padding: 20, paddingTop: 48 },
-  appName: { fontSize: 11, color: '#4a7a4e', letterSpacing: 2, fontWeight: '600', marginBottom: 8 },
-  greeting: { fontSize: 28, fontWeight: '700', color: '#e8f5e4', lineHeight: 34 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  locDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#3a9e52' },
-  locText: { fontSize: 12, color: '#4a7a4e' },
-  searchBar: { marginHorizontal: 20, marginBottom: 20, backgroundColor: '#152418', borderWidth: 1, borderColor: '#1f3a22', borderRadius: 12, padding: 12 },
-  searchText: { fontSize: 13, color: '#2d5530' },
-  sectionLabel: { fontSize: 11, color: '#4a7a4e', letterSpacing: 1.5, fontWeight: '600', paddingHorizontal: 20, marginBottom: 10 },
-  featured: { marginHorizontal: 20, marginBottom: 20, backgroundColor: '#152418', borderWidth: 1, borderColor: '#1f3a22', borderRadius: 16, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
-  featuredIcon: { width: 52, height: 52, borderRadius: 12, backgroundColor: '#1a3d1e', alignItems: 'center', justifyContent: 'center' },
-  featuredEmoji: { fontSize: 26 },
-  featuredName: { fontSize: 15, fontWeight: '600', color: '#e8f5e4', marginBottom: 2 },
-  featuredSci: { fontSize: 11, color: '#4a7a4e', fontStyle: 'italic', marginBottom: 6 },
-  badgeRow: { flexDirection: 'row', gap: 6 },
-  badgeNative: { backgroundColor: '#1a3d1e', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  badgeNativeText: { fontSize: 10, color: '#3a9e52', fontWeight: '500' },
-  badgeLow: { backgroundColor: '#1a2e3d', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  badgeLowText: { fontSize: 10, color: '#3a7a9e', fontWeight: '500' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, gap: 10, marginBottom: 32 },
-  card: { width: '47%', backgroundColor: '#152418', borderWidth: 1, borderColor: '#1f3a22', borderRadius: 14, padding: 12 },
-  cardName: { fontSize: 13, fontWeight: '600', color: '#e8f5e4', marginBottom: 2 },
-  cardSci: { fontSize: 10, color: '#4a7a4e', fontStyle: 'italic', marginBottom: 8 },
+  container: {
+    flex: 1,
+    backgroundColor: CREAM,
+  },
+  scrollContent: {
+    alignItems: 'center',
+  },
+  inner: {
+    alignSelf: 'center',
+  },
+
+  // ── Header ──
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 52,
+    paddingBottom: 16,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logoImg: {
+    width: 40,
+    height: 40,
+    resizeMode: 'contain',
+  },
+  logoText: {
+    fontSize: 20,
+    fontFamily: 'Fraunces_700Bold',
+    color: DARK_GREEN,
+    letterSpacing: 0.3,
+  },
+  navLinks: {
+    flexDirection: 'row',
+    gap: 20,
+  },
+  navLink: {
+    fontSize: 12,
+    fontFamily: 'DMSans_400Regular',
+    color: TEXT_BODY,
+    letterSpacing: 0.2,
+  },
+
+  // ── Divider ──
+  dividerLine: {
+    height: 1,
+    backgroundColor: BORDER,
+  },
+
+  // ── Hero ──
+  hero: {
+    paddingHorizontal: 28,
+    paddingTop: 44,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  heroHeadingRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+  heroHeading: {
+    fontSize: 36,
+    fontFamily: 'Fraunces_400Regular',
+    color: DARK_GREEN,
+    lineHeight: 46,
+  },
+  heroHeadingItalic: {
+    fontSize: 36,
+    fontFamily: 'Fraunces_700Bold_Italic',
+    color: DARK_GREEN,
+    lineHeight: 46,
+  },
+
+  // ── Ornament ──
+  ornamentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    width: '50%',
+  },
+  ornamentLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: BORDER,
+  },
+  ornamentDiamond: {
+    width: 7,
+    height: 7,
+    backgroundColor: SOFT_GREEN,
+    opacity: 0.45,
+    transform: [{ rotate: '45deg' }],
+  },
+
+  // ── Feature rows ──
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 28,
+    gap: 20,
+  },
+  featureImgWrap: {
+    width: '42%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: LIGHT_BG,
+    shadowColor: '#1e3a1e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  featureImg: {
+    width: '100%',
+    height: '100%',
+  },
+  imgFallback: {
+    flex: 1,
+    backgroundColor: LIGHT_BG,
+  },
+  featureText: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 10,
+  },
+  featureHeading: {
+    fontSize: 18,
+    fontFamily: 'Fraunces_700Bold',
+    color: DARK_GREEN,
+    lineHeight: 26,
+  },
+  featureBody: {
+    fontSize: 12.5,
+    fontFamily: 'DMSans_400Regular',
+    color: TEXT_BODY,
+    lineHeight: 20,
+  },
+  linkBtn: {
+    alignSelf: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: DARK_GREEN,
+    paddingBottom: 1,
+  },
+  featureLink: {
+    fontSize: 12,
+    fontFamily: 'DMSans_700Bold',
+    color: DARK_GREEN,
+  },
+
+  // ── Footer ──
+  footerDivider: {
+    height: 1,
+    backgroundColor: BORDER,
+    marginTop: 8,
+  },
+  footer: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    gap: 8,
+  },
+  footerLogo: {
+    width: 26,
+    height: 26,
+    resizeMode: 'contain',
+    opacity: 0.45,
+  },
+  footerText: {
+    fontSize: 11,
+    fontFamily: 'DMSans_400Regular',
+    color: TEXT_MUTED,
+    letterSpacing: 0.4,
+  },
 })
