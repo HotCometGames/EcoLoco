@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react'
+import React, { useRef, useEffect } from 'react'
 import {
   View,
   Text,
@@ -37,27 +37,19 @@ const IMG_POLLINATORS = require('../../assets/EcoLoco_support_polinators.png')
 const IMG_GROW        = require('../../assets/GrowWithConfidence_Ecoloco.png')
 const IMG_ECOSYSTEM   = require('../../assets/EcoLoco_ecosystem.png')
 
-// ─── Single scroll-triggered reveal anim ─────────────────────────────────────
-function useReveal() {
+// ─── Staggered mount fade-up ──────────────────────────────────────────────────
+function useFadeUp(delay = 0) {
   const opacity    = useRef(new Animated.Value(0)).current
-  const translateY = useRef(new Animated.Value(36)).current
-  const scale      = useRef(new Animated.Value(0.97)).current
+  const translateY = useRef(new Animated.Value(28)).current
 
-  const trigger = useCallback(() => {
+  useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1, duration: 700, easing: EASE_OUT, useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0, duration: 700, easing: EASE_OUT, useNativeDriver: true,
-      }),
-      Animated.timing(scale, {
-        toValue: 1, duration: 700, easing: EASE_OUT, useNativeDriver: true,
-      }),
+      Animated.timing(opacity,    { toValue: 1, duration: 680, delay, easing: EASE_OUT, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 680, delay, easing: EASE_OUT, useNativeDriver: true }),
     ]).start()
   }, [])
 
-  return { animStyle: { opacity, transform: [{ translateY }, { scale }] }, trigger }
+  return { opacity, transform: [{ translateY }] }
 }
 
 // ─── Animated press button ────────────────────────────────────────────────────
@@ -134,7 +126,7 @@ function FeatureRow({ image, heading, body, linkText, onLinkPress, imgHeight, re
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 export default function HomeScreen({ navigation }) {
-  const { width, height } = useWindowDimensions()
+  const { width } = useWindowDimensions()
   const isWide   = width > 600
   const imgHeight = isWide ? 280 : 190
   const maxWidth  = Math.min(width, 960)
@@ -158,31 +150,10 @@ export default function HomeScreen({ navigation }) {
     ]).start()
   }, [])
 
-  // Scroll-triggered section reveals
-  const sections = {
-    s1: useReveal(),
-    s2: useReveal(),
-    s3: useReveal(),
-    s4: useReveal(),
-  }
-  const sectionLayouts  = useRef({})
-  const triggered       = useRef(new Set())
-
-  const onSectionLayout = (key) => (e) => {
-    sectionLayouts.current[key] = e.nativeEvent.layout.y
-  }
-
-  const handleScroll = (e) => {
-    const scrollTop = e.nativeEvent.contentOffset.y
-    const threshold = scrollTop + height * 0.82
-
-    Object.entries(sectionLayouts.current).forEach(([key, y]) => {
-      if (!triggered.current.has(key) && threshold > y) {
-        triggered.current.add(key)
-        sections[key]?.trigger()
-      }
-    })
-  }
+  const s1Anim = useFadeUp(200)
+  const s2Anim = useFadeUp(320)
+  const s3Anim = useFadeUp(440)
+  const s4Anim = useFadeUp(560)
 
   const [fontsLoaded] = useFonts({
     Fraunces_400Regular,
@@ -199,8 +170,6 @@ export default function HomeScreen({ navigation }) {
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
-      onScroll={handleScroll}
-      scrollEventThrottle={16}
     >
       <View style={[styles.inner, { width: maxWidth }]}>
 
@@ -238,60 +207,52 @@ export default function HomeScreen({ navigation }) {
         <Divider />
 
         {/* ── Section 1 ── */}
-        <View onLayout={onSectionLayout('s1')}>
-          <FeatureRow
-            animStyle={sections.s1.animStyle}
-            image={IMG_SCANNING}
-            imgHeight={imgHeight}
-            heading="Identify Plants"
-            body="Uncover information about plant type, native region, growing conditions, the pollinators it attracts, and whether it helps or hurts your local ecosystem, all from a single photo taken on your campus."
-            linkText="Go to Identification →"
-            onLinkPress={() => navigation?.navigate('Camera')}
-          />
-        </View>
+        <FeatureRow
+          animStyle={s1Anim}
+          image={IMG_SCANNING}
+          imgHeight={imgHeight}
+          heading="Identify Plants"
+          body="Uncover information about plant type, native region, growing conditions, the pollinators it attracts, and whether it helps or hurts your local ecosystem, all from a single photo taken on your campus."
+          linkText="Go to Identification →"
+          onLinkPress={() => navigation?.navigate('Camera')}
+        />
 
         <Divider />
 
         {/* ── Section 2 ── */}
-        <View onLayout={onSectionLayout('s2')}>
-          <FeatureRow
-            reverse
-            animStyle={sections.s2.animStyle}
-            image={IMG_POLLINATORS}
-            imgHeight={imgHeight}
-            heading="Support Pollinators"
-            body="In recent years, pollinators and wildlife of all kinds have become threatened by habitat loss, climate change, and the spread of non-native species. By identifying what's growing on your school grounds and planting natives where it counts, your eco-club can make a real, measurable difference right where you are."
-          />
-        </View>
+        <FeatureRow
+          reverse
+          animStyle={s2Anim}
+          image={IMG_POLLINATORS}
+          imgHeight={imgHeight}
+          heading="Support Pollinators"
+          body="In recent years, pollinators and wildlife of all kinds have become threatened by habitat loss, climate change, and the spread of non-native species. By identifying what's growing on your school grounds and planting natives where it counts, your eco-club can make a real, measurable difference right where you are."
+        />
 
         <Divider />
 
         {/* ── Section 3 ── */}
-        <View onLayout={onSectionLayout('s3')}>
-          <FeatureRow
-            animStyle={sections.s3.animStyle}
-            image={IMG_GROW}
-            imgHeight={imgHeight}
-            heading="Grow with Confidence"
-            body="EcoLoco gives recommendations tailored to your school's location and conditions. Every suggestion is ranked by real ecological impact, so your club can choose the plants that do the most good while prioritizing species that are realistic to grow and care for."
-            linkText="Go to Recommendation →"
-            onLinkPress={() => navigation?.navigate('Recommend')}
-          />
-        </View>
+        <FeatureRow
+          animStyle={s3Anim}
+          image={IMG_GROW}
+          imgHeight={imgHeight}
+          heading="Grow with Confidence"
+          body="EcoLoco gives recommendations tailored to your school's location and conditions. Every suggestion is ranked by real ecological impact, so your club can choose the plants that do the most good while prioritizing species that are realistic to grow and care for."
+          linkText="Go to Recommendation →"
+          onLinkPress={() => navigation?.navigate('Recommend')}
+        />
 
         <Divider />
 
         {/* ── Section 4 ── */}
-        <View onLayout={onSectionLayout('s4')}>
-          <FeatureRow
-            reverse
-            animStyle={sections.s4.animStyle}
-            image={IMG_ECOSYSTEM}
-            imgHeight={imgHeight}
-            heading="Help Your Ecosystem"
-            body="While the climate crisis can feel global and overwhelming, EcoLoco brings it down to your own campus. Focusing on local impact lets students see the direct effects of their work, where one native oak can support over 500 butterfly and moth species and bring an entire food web back to life."
-          />
-        </View>
+        <FeatureRow
+          reverse
+          animStyle={s4Anim}
+          image={IMG_ECOSYSTEM}
+          imgHeight={imgHeight}
+          heading="Help Your Ecosystem"
+          body="While the climate crisis can feel global and overwhelming, EcoLoco brings it down to your own campus. Focusing on local impact lets students see the direct effects of their work, where one native oak can support over 500 butterfly and moth species and bring an entire food web back to life."
+        />
 
         <View style={styles.footerDivider} />
 
