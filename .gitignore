@@ -48,3 +48,4 @@ __pycache__/
 
 #env
 .env
+backend/test_api.py
