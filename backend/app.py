@@ -41,8 +41,8 @@ def recommend():
     data = request.get_json()
     location = data.get("location")
 
-    if not location or not image:
-        return jsonify({"error": "image and location are required"}), 400
+    if not location:
+        return jsonify({"error": "location is required"}), 400
 
     result = result = get_plant_recommendations(location)
     return jsonify({"result": result})
