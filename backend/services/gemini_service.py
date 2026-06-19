@@ -39,7 +39,13 @@ def identify_plant(image_data, location):
 determine:
 1. plant name (common name)
 2. scientific name
-3. confidence in the identification (0.0 to 1.0)
+3. confidence in the identification as a float between 0.0 and 1.0. Be genuinely calibrated:
+   - Use 0.90–0.99 only if the plant is clearly visible, unambiguous, and you are highly certain
+   - Use 0.70–0.89 if the image is clear but the species could plausibly be one of a few similar plants
+   - Use 0.50–0.69 if the image is partially obscured, low quality, or the plant is hard to distinguish from similar species
+   - Use 0.30–0.49 if you are mostly guessing based on limited visual information
+   - Use below 0.30 if you cannot reliably identify the plant
+   Do NOT default to round numbers like 0.9. Express your actual uncertainty with two decimal places (e.g. 0.83, 0.61, 0.47).
 4. is it native to the area with zip code {location}? (t/f)
 5. status in this area: "invasive", "non-native", or "native"
 6. conservation status: "not_threatened", "threatened", "endangered", "critically_endangered", or "unknown"
@@ -50,9 +56,9 @@ determine:
 
 respond only in JSON
  {{
-  "plant_name": "...", 
+  "plant_name": "...",
   "scientific_name": "...",
-  "confidence": 0.0,
+  "confidence": 0.00,
   "is_native": true/false,
   "invasive_status": "invasive/non-native/native",
   "endangered_status": "not_threatened/threatened/endangered/critically_endangered/unknown",
@@ -140,24 +146,46 @@ respond only in JSON
 
 
 def get_plant_recommendations(location: str):
-    """
-    takes a location and returns ai generated native plant recommendations.
-
-    :param location: Location string (Area code)
-    :return: A problem, an action, and the impact
-    """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
+        temperature=0,
         messages=[
             {
                 "role": "user",
-                "content": f"For the area code {location}, identify 3 local environmental problems and recommend a specific native plant to address each one. For each, give a specific actionable step using that plant. Respond only in JSON with no markdown, no backticks. Format: [{{\"problem\": \"...\", \"action\": \"...\", \"impact\": \"...\"}}]"
+                "content": f"""For ZIP code {location}, return a JSON array of 11 native plants ranked from highest to lowest ecological impact.
+
+wildlife_support values:
+- "high": keystone or near-keystone — strong pollinator, bird, or insect support
+- "medium": supports some local wildlife but not a primary habitat plant
+- "low": modest benefit, mainly soil or water improvement
+
+The FIRST 3 entries are your top recommendations — full detail:
+{{
+  "plant_name": "common name",
+  "scientific_name": "scientific name",
+  "wildlife_support": "high/medium/low",
+  "problem": "one sentence — the specific local issue this plant addresses",
+  "action": "one actionable planting step — mention plant_name explicitly",
+  "impact": "direct ecological benefit — mention plant_name explicitly"
+}}
+
+Entries 4–11 are additional high-impact natives — compact format:
+{{
+  "plant_name": "common name",
+  "scientific_name": "scientific name",
+  "wildlife_support": "high/medium/low",
+  "benefit": "one sentence describing the key ecological benefit"
+}}
+
+Rank all 11 highest wildlife_support first. No markdown, no backticks, return only the JSON array."""
             }
         ]
     )
 
-    raw_recommendations = response.choices[0].message.content.strip()
-    if raw_recommendations.startswith("```json"):
-        raw_recommendations = raw_recommendations[7:-3].strip()
+    raw = response.choices[0].message.content.strip()
+    if raw.startswith("```json"):
+        raw = raw[7:-3].strip()
+    elif raw.startswith("```"):
+        raw = raw[3:-3].strip()
 
-    return json.loads(raw_recommendations)
+    return json.loads(raw)

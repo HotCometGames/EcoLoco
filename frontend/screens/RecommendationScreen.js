@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, TextInput, Alert, Image,
-  useWindowDimensions, Animated, Easing,
+  useWindowDimensions, Animated, Easing, Linking,
 } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Fraunces_700Bold } from '@expo-google-fonts/fraunces';
@@ -20,6 +20,46 @@ const CARD_BG    = '#fefcf8';
 
 const EASE_OUT = Easing.bezier(0.22, 1, 0.36, 1);
 const LOGO = require('../../assets/EcoLoco_logo.png');
+
+// ─── Highlight plant name in green ───────────────────────────────────────────
+function HighlightedText({ text, plantName, style }) {
+  if (!plantName || !text || !text.includes(plantName)) {
+    return <Text style={style}>{text}</Text>;
+  }
+  const parts = text.split(plantName);
+  return (
+    <Text style={style}>
+      {parts.map((part, i) => (
+        <React.Fragment key={i}>
+          {part}
+          {i < parts.length - 1 && (
+            <Text style={{ color: SOFT_GREEN, fontFamily: 'DMSans_700Bold' }}>{plantName}</Text>
+          )}
+        </React.Fragment>
+      ))}
+    </Text>
+  );
+}
+
+// ─── Wildlife support pill ────────────────────────────────────────────────────
+function SupportPill({ level }) {
+  const cfg = {
+    high:   { bg: '#eaf2e8', color: SOFT_GREEN,  label: '↑ High' },
+    medium: { bg: '#faf3e0', color: '#c49a3a',   label: '→ Medium' },
+    low:    { bg: '#f5efec', color: '#C97D5D',   label: '↓ Low' },
+  };
+  const c = cfg[level?.toLowerCase()] ?? cfg.medium;
+  return (
+    <View style={[sp.wrap, { backgroundColor: c.bg }]}>
+      <Text style={[sp.text, { color: c.color }]}>{c.label} Wildlife</Text>
+    </View>
+  );
+}
+
+const sp = StyleSheet.create({
+  wrap: { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  text: { fontSize: 11, fontFamily: 'DMSans_700Bold' },
+});
 
 // ─── Bouncing dots loader ────────────────────────────────────────────────────
 function LoadingDots({ message }) {
@@ -107,16 +147,21 @@ function AnimatedCard({ item, index }) {
         <Text style={styles.cardNum}>{String(index + 1).padStart(2, '0')}</Text>
       </View>
       <Text style={styles.problemText}>{item.problem}</Text>
+      {item.wildlife_support && (
+        <View style={{ marginTop: 10 }}>
+          <SupportPill level={item.wildlife_support} />
+        </View>
+      )}
 
       <View style={styles.cardDivider} />
 
       <Text style={styles.cardLabel}>ACTION</Text>
-      <Text style={styles.actionText}>{item.action}</Text>
+      <HighlightedText text={item.action} plantName={item.plant_name} style={styles.actionText} />
 
       <View style={styles.cardDivider} />
 
       <Text style={styles.cardLabel}>IMPACT</Text>
-      <Text style={styles.impactText}>{item.impact}</Text>
+      <HighlightedText text={item.impact} plantName={item.plant_name} style={styles.impactText} />
     </Animated.View>
   );
 }
@@ -124,9 +169,10 @@ function AnimatedCard({ item, index }) {
 // ─── Screen ──────────────────────────────────────────────────────────────────
 export default function RecommendationScreen({ navigation, route }) {
   const prefillZip = route?.params?.prefillZip ?? '';
-  const [zipCode, setZipCode] = useState(prefillZip);
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
+  const [zipCode,          setZipCode]         = useState(prefillZip);
+  const [loading,          setLoading]         = useState(false);
+  const [results,          setResults]         = useState(null);
+  const [viewAllExpanded,  setViewAllExpanded] = useState(false);
 
   const { width } = useWindowDimensions();
   const maxWidth  = Math.min(width, 960);
@@ -136,6 +182,7 @@ export default function RecommendationScreen({ navigation, route }) {
   // Auto-run if navigated here with a ZIP pre-filled
   useEffect(() => {
     if (prefillZip?.length === 5) {
+      setZipCode(prefillZip);
       handleRecommend(prefillZip);
     }
   }, [prefillZip]);
@@ -218,12 +265,54 @@ export default function RecommendationScreen({ navigation, route }) {
         {results && !loading && (
           <View style={styles.resultsSection}>
             <View style={styles.resultsHeader}>
-              <Text style={styles.resultsTitle}>Results</Text>
-              <Text style={styles.resultsCount}>{results.length} recommendations</Text>
+              <Text style={styles.resultsTitle}>Top Picks</Text>
+              <Text style={styles.resultsCount}>ranked by impact</Text>
             </View>
-            {results.map((item, index) => (
+
+            {results.slice(0, 3).map((item, index) => (
               <AnimatedCard key={index} item={item} index={index} />
             ))}
+
+            {results.length > 3 && (
+              <View style={styles.viewAllSection}>
+                <TouchableOpacity
+                  style={styles.viewAllToggle}
+                  onPress={() => setViewAllExpanded(v => !v)}
+                >
+                  <Text style={styles.viewAllToggleText}>
+                    {viewAllExpanded ? '▲ Hide' : '▼ More high-impact natives for your area'} ({results.length - 3} more)
+                  </Text>
+                </TouchableOpacity>
+
+                {viewAllExpanded && (
+                  <>
+                    {results.slice(3).map((item, i) => (
+                      <View key={i} style={styles.viewAllItem}>
+                        <View style={styles.viewAllLeft}>
+                          <Text style={styles.viewAllName}>{item.plant_name}</Text>
+                          {item.scientific_name
+                            ? <Text style={styles.viewAllSci}>{item.scientific_name}</Text>
+                            : null}
+                          {item.benefit
+                            ? <Text style={styles.viewAllBenefit}>{item.benefit}</Text>
+                            : null}
+                        </View>
+                        {item.wildlife_support && <SupportPill level={item.wildlife_support} />}
+                      </View>
+                    ))}
+
+                    <TouchableOpacity
+                      style={styles.nwfLink}
+                      onPress={() => Linking.openURL('https://nativeplantfinder.nwf.org')}
+                    >
+                      <Text style={styles.nwfLinkText}>
+                        Looking for the complete native plant database for your exact location? Explore NWF's Native Plant Finder →
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
           </View>
         )}
 
@@ -284,4 +373,29 @@ const styles = StyleSheet.create({
   impactText: { fontSize: 13, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED, lineHeight: 20, marginTop: 5 },
 
   skLine: { backgroundColor: LIGHT_BG, borderRadius: 4 },
+
+  viewAllSection: { marginTop: 4, marginBottom: 24 },
+  viewAllToggle: { paddingVertical: 14, alignItems: 'center' },
+  viewAllToggleText: { fontSize: 13, fontFamily: 'DMSans_700Bold', color: SOFT_GREEN },
+  viewAllItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: CARD_BG, borderRadius: 10,
+    borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8,
+  },
+  viewAllLeft:    { flex: 1, marginRight: 10 },
+  viewAllName:    { fontSize: 14, fontFamily: 'DMSans_700Bold', color: DARK_GREEN },
+  viewAllSci:     { fontSize: 11, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED, fontStyle: 'italic', marginTop: 2 },
+  viewAllBenefit: { fontSize: 12, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED, lineHeight: 18, marginTop: 4 },
+
+  nwfLink: {
+    marginTop: 8, marginBottom: 16, paddingVertical: 14,
+    paddingHorizontal: 16, borderRadius: 10,
+    backgroundColor: '#eaf2e8', borderWidth: 1, borderColor: BORDER,
+    alignItems: 'center',
+  },
+  nwfLinkText: {
+    fontSize: 12, fontFamily: 'DMSans_400Regular', color: SOFT_GREEN,
+    textAlign: 'center', lineHeight: 18,
+  },
 });

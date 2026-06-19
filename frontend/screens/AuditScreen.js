@@ -59,7 +59,7 @@ const sp = StyleSheet.create({
 // ─── Confidence badge ─────────────────────────────────────────────────────────
 function ConfidenceBadge({ confidence }) {
   const pct = Math.round((confidence ?? 0) * 100);
-  const color = pct >= 85 ? SOFT_GREEN : pct >= 65 ? AMBER : TERRACOTTA;
+  const color = pct >= 85 ? SOFT_GREEN : pct >= 75 ? AMBER : TERRACOTTA;
   return (
     <Text style={[cb.text, { color }]}>{pct}% confident</Text>
   );
@@ -118,7 +118,7 @@ function PlantCard({ plant, onDelete }) {
         </View>
         <SupportPill level={plant.wildlife_support} />
         <ConfidenceBadge confidence={plant.confidence} />
-        {(plant.confidence ?? 1) < 0.75 && (
+        {(plant.confidence ?? 1) < 0.80 && (
           <Text style={styles.expertWarning}>⚠ Low confidence — consult an expert before acting</Text>
         )}
       </View>
@@ -126,11 +126,19 @@ function PlantCard({ plant, onDelete }) {
   );
 }
 
+// Module-level vars so plants survive tab switches / component remounts
+let _savedPlants = [];
+let _savedZip    = '';
+
 // ─── AuditScreen ─────────────────────────────────────────────────────────────
 export default function AuditScreen({ navigation }) {
-  const [zipCode, setZipCode] = useState('');
-  const [plants,  setPlants]  = useState([]);
+  const [zipCode, setZipCode] = useState(_savedZip);
+  const [plants,  setPlants]  = useState(_savedPlants);
   const [scanning, setScanning] = useState(false);
+
+  // Keep module vars in sync so state is restored on remount
+  useEffect(() => { _savedPlants = plants; }, [plants]);
+  useEffect(() => { _savedZip = zipCode; }, [zipCode]);
 
   const { width } = useWindowDimensions();
   const maxWidth   = Math.min(width, 960);
@@ -178,7 +186,7 @@ export default function AuditScreen({ navigation }) {
       ));
       const discard  = () => setPlants(prev => prev.filter(p => p._id !== tempId));
 
-      if (pct < 60) {
+      if (pct < 70) {
         // remove loading card first, then prompt
         discard();
         Alert.alert(

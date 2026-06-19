@@ -41,7 +41,7 @@ function TabNavigator() {
     >
       <Tab.Screen name="Home"     component={HomeScreen} />
       <Tab.Screen name="Camera"   component={IdentificationScreen} options={{ tabBarLabel: 'Identify' }} />
-      <Tab.Screen name="EcoScan"  component={AuditScreen} />
+      <Tab.Screen name="EcoScan"  component={AuditScreen} options={{ unmountOnBlur: false }} />
       <Tab.Screen name="Recommend"component={RecommendationScreen} />
     </Tab.Navigator>
   )

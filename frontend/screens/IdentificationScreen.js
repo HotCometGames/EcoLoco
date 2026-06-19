@@ -337,10 +337,10 @@ export default function IdentificationScreen({ navigation }) {
               </View>
             </View>
 
-            {result.confidence < 0.75 && (
+            {result.confidence < 0.80 && (
               <View style={styles.expertBanner}>
                 <Text style={styles.expertBannerText}>
-                  ⚠ Confidence below 75% — identification may be inaccurate. Consult a botanist or field guide before taking action.
+                  ⚠ Confidence below 80% — identification may be inaccurate. Consult a botanist or field guide before taking action.
                 </Text>
               </View>
             )}

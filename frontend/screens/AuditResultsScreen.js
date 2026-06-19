@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, Image, useWindowDimensions, Animated, Easing, Pressable,
+  ActivityIndicator, Image, useWindowDimensions, Animated, Easing, Pressable, Linking,
 } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Fraunces_700Bold } from '@expo-google-fonts/fraunces';
@@ -76,6 +76,26 @@ const ring = StyleSheet.create({
   sub:  { fontSize: 11, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED, marginTop: 2 },
 });
 
+// ─── Highlight plant name in green inside a text block ───────────────────────
+function HighlightedText({ text, plantName, style }) {
+  if (!plantName || !text || !text.includes(plantName)) {
+    return <Text style={style}>{text}</Text>;
+  }
+  const parts = text.split(plantName);
+  return (
+    <Text style={style}>
+      {parts.map((part, i) => (
+        <React.Fragment key={i}>
+          {part}
+          {i < parts.length - 1 && (
+            <Text style={{ color: SOFT_GREEN, fontFamily: 'DMSans_700Bold' }}>{plantName}</Text>
+          )}
+        </React.Fragment>
+      ))}
+    </Text>
+  );
+}
+
 // ─── Fade-in wrapper ──────────────────────────────────────────────────────────
 function FadeIn({ delay = 0, children }) {
   const opacity    = useRef(new Animated.Value(0)).current;
@@ -121,7 +141,7 @@ const ba = StyleSheet.create({
 });
 
 // ─── Pressable action card ────────────────────────────────────────────────────
-function ActionCard({ rec, index, onHoverIn, onHoverOut }) {
+function ActionCard({ rec, index, onHoverIn, onHoverOut, boost }) {
   const num   = String(index + 1).padStart(2, '0');
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -141,20 +161,24 @@ function ActionCard({ rec, index, onHoverIn, onHoverOut }) {
         <Animated.View style={[ac.card, { transform: [{ scale }] }]}>
           <View style={ac.topRow}>
             <Text style={ac.num}>{num}</Text>
-            <View style={ac.badge}>
-              <Text style={ac.badgeText}>↑ Boosts Biodiversity</Text>
+            <View style={ac.badgeRow}>
+              {boost != null && (
+                <View style={ac.boostBadge}>
+                  <Text style={ac.boostText}>+{boost} pts</Text>
+                </View>
+              )}
+              <View style={ac.badge}>
+                <Text style={ac.badgeText}>↑ Native Plant</Text>
+              </View>
             </View>
           </View>
           <Text style={ac.problem}>{rec.problem}</Text>
           <View style={ac.divider} />
           <Text style={ac.label}>ACTION</Text>
-          <Text style={ac.body}>{rec.action}</Text>
+          <HighlightedText text={rec.action} plantName={rec.plant_name} style={ac.body} />
           <View style={ac.divider} />
           <Text style={ac.label}>ECOLOGICAL BENEFIT</Text>
-          <Text style={ac.body}>{rec.impact}</Text>
-          <View style={ac.hintRow}>
-            <Text style={ac.hint}>Hold to preview score impact</Text>
-          </View>
+          <HighlightedText text={rec.impact} plantName={rec.plant_name} style={ac.body} />
         </Animated.View>
       </Pressable>
     </FadeIn>
@@ -167,16 +191,17 @@ const ac = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER,
     padding: 18, marginBottom: 14,
   },
-  topRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  num:      { fontSize: 12, fontFamily: 'DMSans_700Bold', color: TEXT_MUTED, letterSpacing: 1 },
-  badge:    { backgroundColor: '#eaf2e8', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText:{ fontSize: 11, fontFamily: 'DMSans_700Bold', color: SOFT_GREEN },
+  topRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  num:       { fontSize: 12, fontFamily: 'DMSans_700Bold', color: TEXT_MUTED, letterSpacing: 1 },
+  badgeRow:  { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  boostBadge:{ backgroundColor: DARK_GREEN, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  boostText: { fontSize: 11, fontFamily: 'DMSans_700Bold', color: CREAM },
+  badge:     { backgroundColor: '#eaf2e8', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { fontSize: 11, fontFamily: 'DMSans_700Bold', color: SOFT_GREEN },
   problem:  { fontSize: 17, fontFamily: 'Fraunces_700Bold', color: DARK_GREEN, lineHeight: 24, marginBottom: 14 },
   divider:  { height: 1, backgroundColor: BORDER, marginVertical: 12 },
   label:    { fontSize: 10, fontFamily: 'DMSans_700Bold', color: TEXT_MUTED, letterSpacing: 1.2, marginBottom: 5 },
   body:     { fontSize: 13, fontFamily: 'DMSans_400Regular', color: TEXT_BODY, lineHeight: 21 },
-  hintRow:  { marginTop: 12, alignItems: 'center' },
-  hint:     { fontSize: 10, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED, letterSpacing: 0.4 },
 });
 
 // ─── AuditResultsScreen ───────────────────────────────────────────────────────
@@ -187,8 +212,11 @@ export default function AuditResultsScreen({ route, navigation }) {
   const [recs,         setRecs]          = useState([]);
   const [loading,      setLoading]       = useState(true);
   const [recsLoading,  setRecsLoading]   = useState(true);
-  const [showProjected,setShowProjected] = useState(false);
-  const [hovering,     setHovering]      = useState(false);
+  const [showProjected,  setShowProjected]   = useState(false);
+  const [hovering,       setHovering]        = useState(null); // 0|1|2 = card index, 'all' = combined, null = none
+  const [viewAllExpanded,setViewAllExpanded] = useState(false);
+
+  const BOOST = { high: 8, medium: 6, low: 5 };
 
   const { width } = useWindowDimensions();
   const maxWidth   = Math.min(width, 960);
@@ -214,7 +242,7 @@ export default function AuditResultsScreen({ route, navigation }) {
       if (zipCode) {
         try {
           const recData = await getPlantRecommendations(zipCode);
-          setRecs((recData.result ?? []).slice(0, 3));
+          setRecs(recData.result ?? []);
         } catch (err) {
           console.error('Recs fetch error:', err);
         } finally {
@@ -227,23 +255,31 @@ export default function AuditResultsScreen({ route, navigation }) {
     fetchAll();
   }, []);
 
-  // Ring target:
-  //   Current tab   → current score always
-  //   After Actions → current score normally, projected when holding a card
+  // Combined projected score (top 3 actions only) — shown in subtitle + "all" hold
+  const projectedScore = (!recsLoading && recs.length > 0 && scoreData)
+    ? Math.min(100, scoreData.score + recs.slice(0, 3).reduce((sum, r) => sum + (BOOST[r.wildlife_support] ?? 5), 0))
+    : (scoreData?.projected_score ?? 0);
+
+  // Score preview: single card → that card's boost; 'all' → combined projected
+  const hoverScore = hovering === 'all'
+    ? projectedScore
+    : (hovering !== null && recs[hovering] && scoreData)
+      ? Math.min(100, scoreData.score + (BOOST[recs[hovering].wildlife_support] ?? 5))
+      : null;
+
   const ringTarget = scoreData
     ? (showProjected
-        ? (hovering ? scoreData.projected_score : scoreData.score)
+        ? (hovering !== null ? hoverScore : scoreData.score)
         : scoreData.score)
     : 0;
 
   const ringLabel = showProjected
-    ? (hovering ? 'after actions' : 'current')
+    ? (hovering === 'all' ? 'all 3' : hovering !== null ? 'this action' : 'current')
     : null;
 
-  const delta = scoreData ? scoreData.projected_score - scoreData.score : 0;
+  const delta = scoreData ? projectedScore - scoreData.score : 0;
 
-  const onHoverIn  = useCallback(() => setHovering(true),  []);
-  const onHoverOut = useCallback(() => setHovering(false), []);
+  const onHoverOut = useCallback(() => setHovering(null), []);
 
   if (!fontsLoaded) return <View style={styles.container} />;
 
@@ -297,8 +333,8 @@ export default function AuditResultsScreen({ route, navigation }) {
               {showProjected && (
                 <BeforeAfterPill
                   fromScore={scoreData.score}
-                  toScore={scoreData.projected_score}
-                  visible={hovering}
+                  toScore={hoverScore ?? scoreData.score}
+                  visible={hovering !== null}
                 />
               )}
 
@@ -306,7 +342,7 @@ export default function AuditResultsScreen({ route, navigation }) {
               <View style={[styles.toggle, showProjected && { marginTop: 20 }]}>
                 <TouchableOpacity
                   style={[styles.toggleBtn, !showProjected && styles.toggleActive]}
-                  onPress={() => { setShowProjected(false); setHovering(false); }}
+                  onPress={() => { setShowProjected(false); setHovering(null); }}
                 >
                   <Text style={[styles.toggleText, !showProjected && styles.toggleTextActive]}>
                     Current
@@ -379,7 +415,7 @@ export default function AuditResultsScreen({ route, navigation }) {
                       onPress={() => setShowProjected(true)}
                     >
                       <Text style={styles.afterHintText}>
-                        See how you could reach {scoreData.projected_score} →
+                        See how you could reach {projectedScore} →
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -393,11 +429,11 @@ export default function AuditResultsScreen({ route, navigation }) {
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Your 3-Action Plan</Text>
                   <Text style={styles.sectionSubtitle}>
-                    Adding these 3 native plants to your campus could raise your score from{' '}
+                    All 3 actions together could raise your score from{' '}
                     <Text style={{ fontFamily: 'DMSans_700Bold', color: scoreColor(scoreData.score) }}>{scoreData.score}</Text>
                     {' → '}
-                    <Text style={{ fontFamily: 'DMSans_700Bold', color: scoreColor(scoreData.projected_score) }}>{scoreData.projected_score}</Text>.
-                    {' '}Hold any card to preview.
+                    <Text style={{ fontFamily: 'DMSans_700Bold', color: scoreColor(projectedScore) }}>{projectedScore}</Text>
+                    {' '}(+{delta} pts). Hold any card to preview.
                   </Text>
 
                   {recsLoading && (
@@ -415,15 +451,82 @@ export default function AuditResultsScreen({ route, navigation }) {
                     </View>
                   )}
 
-                  {!recsLoading && recs.map((rec, i) => (
+                  {!recsLoading && recs.slice(0, 3).map((rec, i) => (
                     <ActionCard
                       key={i}
                       rec={rec}
                       index={i}
-                      onHoverIn={onHoverIn}
+                      onHoverIn={() => setHovering(i)}
                       onHoverOut={onHoverOut}
+                      boost={BOOST[rec.wildlife_support] ?? 5}
                     />
                   ))}
+
+                  {/* ── All 3 combined hold button ── */}
+                  {!recsLoading && recs.length >= 3 && (
+                    <Pressable
+                      onPressIn={() => setHovering('all')}
+                      onPressOut={() => setHovering(null)}
+                    >
+                      <View style={[styles.allBtn, hovering === 'all' && styles.allBtnActive]}>
+                        <Text style={[styles.allBtnText, hovering === 'all' && { color: CREAM }]}>
+                          {hovering === 'all'
+                            ? `All 3 together: ${scoreData.score} → ${projectedScore}  (+${delta} pts)`
+                            : `Hold to preview all 3 combined  (+${delta} pts)`}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  )}
+
+                  {/* ── More high-impact natives ── */}
+                  {!recsLoading && recs.length > 3 && (
+                    <View style={styles.viewAllSection}>
+                      <TouchableOpacity
+                        style={styles.viewAllToggle}
+                        onPress={() => setViewAllExpanded(v => !v)}
+                      >
+                        <Text style={styles.viewAllToggleText}>
+                          {viewAllExpanded ? '▲ Hide' : '▼ More high-impact natives for your area'} ({recs.length - 3} more)
+                        </Text>
+                      </TouchableOpacity>
+
+                      {viewAllExpanded && (
+                        <>
+                          {recs.slice(3).map((rec, i) => (
+                            <View key={i} style={styles.viewAllItem}>
+                              <View style={{ flex: 1, marginRight: 10 }}>
+                                <Text style={styles.viewAllName}>{rec.plant_name}</Text>
+                                {rec.scientific_name
+                                  ? <Text style={styles.viewAllSci}>{rec.scientific_name}</Text>
+                                  : null}
+                                {rec.benefit
+                                  ? <Text style={styles.viewAllBenefit}>{rec.benefit}</Text>
+                                  : null}
+                              </View>
+                              <View style={[styles.supportPill, {
+                                backgroundColor: rec.wildlife_support === 'high' ? '#eaf2e8' : rec.wildlife_support === 'medium' ? '#faf3e0' : '#f5efec'
+                              }]}>
+                                <Text style={[styles.supportPillText, {
+                                  color: rec.wildlife_support === 'high' ? SOFT_GREEN : rec.wildlife_support === 'medium' ? AMBER : TERRACOTTA
+                                }]}>
+                                  {rec.wildlife_support === 'high' ? '↑ High' : rec.wildlife_support === 'medium' ? '→ Medium' : '↓ Low'} Wildlife
+                                </Text>
+                              </View>
+                            </View>
+                          ))}
+
+                          <TouchableOpacity
+                            style={styles.nwfLink}
+                            onPress={() => Linking.openURL('https://nativeplantfinder.nwf.org')}
+                          >
+                            <Text style={styles.nwfLinkText}>
+                              Looking for the complete native plant database for your exact location? Explore NWF's Native Plant Finder →
+                            </Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
+                  )}
                 </View>
               </FadeIn>
             )}
@@ -434,7 +537,7 @@ export default function AuditResultsScreen({ route, navigation }) {
             <View style={styles.ctaSection}>
               <TouchableOpacity
                 style={styles.ctaBtn}
-                onPress={() => navigation.navigate('Main', { screen: 'Recommend' })}
+                onPress={() => navigation.navigate('Main', { screen: 'Recommend', params: { prefillZip: zipCode } })}
               >
                 <Text style={styles.ctaBtnText}>Full Recommendations</Text>
               </TouchableOpacity>
@@ -519,6 +622,39 @@ const styles = StyleSheet.create({
 
   afterHint: { alignItems: 'center', marginTop: 8, paddingVertical: 12 },
   afterHintText: { fontSize: 13, fontFamily: 'DMSans_700Bold', color: SOFT_GREEN },
+
+  allBtn: {
+    borderRadius: 12, borderWidth: 1.5, borderColor: DARK_GREEN,
+    paddingVertical: 15, alignItems: 'center', marginBottom: 4,
+  },
+  allBtnActive: { backgroundColor: DARK_GREEN },
+  allBtnText: { fontSize: 13, fontFamily: 'DMSans_700Bold', color: DARK_GREEN },
+
+  viewAllSection: { marginTop: 8, marginBottom: 4 },
+  viewAllToggle:  { paddingVertical: 14, alignItems: 'center' },
+  viewAllToggleText: { fontSize: 13, fontFamily: 'DMSans_700Bold', color: SOFT_GREEN },
+  viewAllItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: CARD_BG, borderRadius: 10,
+    borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8,
+  },
+  viewAllName:    { fontSize: 14, fontFamily: 'DMSans_700Bold', color: DARK_GREEN },
+  viewAllSci:     { fontSize: 11, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED, fontStyle: 'italic', marginTop: 2 },
+  viewAllBenefit: { fontSize: 12, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED, lineHeight: 18, marginTop: 4 },
+  supportPill:     { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  supportPillText: { fontSize: 11, fontFamily: 'DMSans_700Bold' },
+
+  nwfLink: {
+    marginTop: 8, marginBottom: 16, paddingVertical: 14,
+    paddingHorizontal: 16, borderRadius: 10,
+    backgroundColor: '#eaf2e8', borderWidth: 1, borderColor: BORDER,
+    alignItems: 'center',
+  },
+  nwfLinkText: {
+    fontSize: 12, fontFamily: 'DMSans_400Regular', color: SOFT_GREEN,
+    textAlign: 'center', lineHeight: 18,
+  },
 
   ctaSection: { padding: 24, paddingBottom: 52, alignItems: 'center', gap: 10 },
   ctaBtn: {
