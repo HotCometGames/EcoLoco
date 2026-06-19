@@ -15,6 +15,15 @@ export async function identifyPlant(imageData, location) {
   return parseResponse(res);
 }
 
+export async function getScore(plants) {
+  const res = await fetch(`${API_URL}/score`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plants }),
+  });
+  return parseResponse(res);
+}
+
 export async function getPlantRecommendations(location) {
   const res = await fetch(`${API_URL}/recommend`, {
     method: 'POST',

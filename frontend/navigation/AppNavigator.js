@@ -1,66 +1,59 @@
 import { NavigationContainer } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { Ionicons } from '@expo/vector-icons'
 
 import HomeScreen from '../screens/HomeScreen'
 import IdentificationScreen from '../screens/IdentificationScreen'
 import RecommendationScreen from '../screens/RecommendationScreen'
+import AuditScreen from '../screens/AuditScreen'
+import AuditResultsScreen from '../screens/AuditResultsScreen'
 
-const DARK_GREEN = '#1e3a1e';
-const Tab = createBottomTabNavigator()
+const Tab   = createBottomTabNavigator()
+const Stack = createNativeStackNavigator()
+
+const DARK_GREEN = '#1e3a1e'
+
+function TabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: DARK_GREEN,
+          borderTopWidth: 0,
+          height: 65,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarActiveTintColor:   '#fff',
+        tabBarInactiveTintColor: '#d9f2d9',
+        tabBarIcon: ({ color, size }) => {
+          const icons = {
+            Home:     'home',
+            Camera:   'leaf',
+            EcoScan:  'scan-outline',
+            Recommend:'thumbs-up',
+          }
+          return <Ionicons name={icons[route.name]} size={size} color={color} />
+        },
+      })}
+    >
+      <Tab.Screen name="Home"     component={HomeScreen} />
+      <Tab.Screen name="Camera"   component={IdentificationScreen} options={{ tabBarLabel: 'Identify' }} />
+      <Tab.Screen name="EcoScan"  component={AuditScreen} />
+      <Tab.Screen name="Recommend"component={RecommendationScreen} />
+    </Tab.Navigator>
+  )
+}
 
 export default function AppNavigator() {
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-
-          tabBarStyle: {
-            backgroundColor: DARK_GREEN, // green bottom bar
-            borderTopWidth: 0,
-            height: 65,
-            paddingBottom: 8,
-            paddingTop: 8,
-          },
-
-          tabBarActiveTintColor: '#fff',
-          tabBarInactiveTintColor: '#d9f2d9',
-
-          tabBarIcon: ({ color, size }) => {
-            let iconName
-
-            if (route.name === 'Home') {
-              iconName = 'home'
-            } else if (route.name === 'Identification') {
-              iconName = 'leaf'
-            } else if (route.name === 'Recommend') {
-              iconName = 'thumbs-up'
-            }
-
-            return (
-              <Ionicons
-                name={iconName}
-                size={size}
-                color={color}
-              />
-            )
-          },
-        })}
-      >
-        <Tab.Screen
-          name="Home"
-          component={HomeScreen}
-        />
-        <Tab.Screen
-          name="Identification"
-          component={IdentificationScreen}
-        />
-        <Tab.Screen
-          name="Recommend"
-          component={RecommendationScreen}
-        />
-      </Tab.Navigator>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Main"         component={TabNavigator} />
+        <Stack.Screen name="AuditResults" component={AuditResultsScreen} />
+      </Stack.Navigator>
     </NavigationContainer>
   )
 }

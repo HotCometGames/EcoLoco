@@ -128,13 +128,18 @@ const icon = StyleSheet.create({
   },
 });
 
-// ─── Native badge ─────────────────────────────────────────────────────────────
-function NativeBadge({ isNative }) {
+// ─── Status badge (native / non-native / invasive) ────────────────────────────
+function NativeBadge({ invasiveStatus, isNative }) {
+  const status = invasiveStatus?.toLowerCase() ?? (isNative ? 'native' : 'non-native');
+  const cfg = {
+    native:       { bg: LIGHT_BG,    color: SOFT_GREEN,  label: 'Native' },
+    'non-native': { bg: '#faf3e0',   color: '#c49a3a',   label: 'Non-Native' },
+    invasive:     { bg: '#fdf0ec',   color: '#C97D5D',   label: '⚠ Invasive' },
+  };
+  const c = cfg[status] ?? cfg['non-native'];
   return (
-    <View style={[badge.wrap, isNative ? badge.native : badge.nonNative]}>
-      <Text style={[badge.text, isNative ? badge.nativeText : badge.nonNativeText]}>
-        {isNative ? 'Native' : 'Non-Native'}
-      </Text>
+    <View style={[badge.wrap, { backgroundColor: c.bg }]}>
+      <Text style={[badge.text, { color: c.color }]}>{c.label}</Text>
     </View>
   );
 }
@@ -142,10 +147,6 @@ function NativeBadge({ isNative }) {
 const badge = StyleSheet.create({
   wrap: { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   text: { fontSize: 12, fontFamily: 'DMSans_400Regular' },
-  native: { backgroundColor: LIGHT_BG },
-  nativeText: { color: SOFT_GREEN },
-  nonNative: { backgroundColor: '#fdf0ec' },
-  nonNativeText: { color: '#C97D5D' },
 });
 
 export default function IdentificationScreen({ navigation }) {
@@ -247,15 +248,6 @@ export default function IdentificationScreen({ navigation }) {
             <Image source={LOGO} style={styles.logoImg} />
             <Text style={styles.logoText}>EcoLoco</Text>
           </View>
-          <View style={styles.navLinks}>
-            <View style={styles.navLinkActive}>
-              <Text style={styles.navLinkActiveText}>Identification</Text>
-              <View style={styles.navUnderline} />
-            </View>
-            <TouchableOpacity onPress={() => navigation?.navigate('Recommend')}>
-              <Text style={styles.navLink}>Recommendation</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         <View style={styles.divider} />
@@ -341,9 +333,17 @@ export default function IdentificationScreen({ navigation }) {
               )}
               <View style={styles.resultInfo}>
                 <Text style={styles.plantName}>{result.plant_name}</Text>
-                <NativeBadge isNative={result.is_native} />
+                <NativeBadge invasiveStatus={result.invasive_status} isNative={result.is_native} />
               </View>
             </View>
+
+            {result.confidence < 0.75 && (
+              <View style={styles.expertBanner}>
+                <Text style={styles.expertBannerText}>
+                  ⚠ Confidence below 75% — identification may be inaccurate. Consult a botanist or field guide before taking action.
+                </Text>
+              </View>
+            )}
 
             {/* Actions */}
             {result.actions?.length > 0 && (
@@ -357,6 +357,16 @@ export default function IdentificationScreen({ navigation }) {
                   </View>
                 ))}
               </View>
+            )}
+
+            {/* Navigate to full recommendations */}
+            {zipCode?.length === 5 && (
+              <TouchableOpacity
+                style={styles.recBtn}
+                onPress={() => navigation.navigate('Recommend', { prefillZip: zipCode })}
+              >
+                <Text style={styles.recBtnText}>Get native plant recommendations for {zipCode}  →</Text>
+              </TouchableOpacity>
             )}
           </View>
           </AnimatedResults>
@@ -381,12 +391,6 @@ const styles = StyleSheet.create({
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logoImg: { width: 40, height: 40, resizeMode: 'contain' },
   logoText: { fontSize: 20, fontFamily: 'Fraunces_700Bold', color: DARK_GREEN, letterSpacing: 0.3 },
-  navLinks: { flexDirection: 'row', gap: 20, alignItems: 'center' },
-  navLinkActive: { alignItems: 'center', gap: 4 },
-  navLinkActiveText: { fontSize: 12, fontFamily: 'DMSans_700Bold', color: DARK_GREEN },
-  navUnderline: { height: 2, width: '100%', backgroundColor: DARK_GREEN, borderRadius: 1 },
-  navLink: { fontSize: 12, fontFamily: 'DMSans_400Regular', color: TEXT_BODY },
-
   divider: { height: 1, backgroundColor: BORDER },
 
   // ── Title ──
@@ -475,4 +479,14 @@ const styles = StyleSheet.create({
   actionDivider: { height: 1, backgroundColor: BORDER, marginVertical: 6 },
   actionText: { fontSize: 14, fontFamily: 'DMSans_700Bold', color: DARK_GREEN },
   impactText: { fontSize: 13, fontFamily: 'DMSans_400Regular', color: TEXT_BODY, lineHeight: 19 },
+  recBtn: {
+    marginTop: 16, backgroundColor: '#1e3a1e', borderRadius: 10,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  recBtnText: { fontSize: 13, fontFamily: 'DMSans_700Bold', color: '#f5f0e8' },
+  expertBanner: {
+    backgroundColor: '#fdf0ec', borderRadius: 10, borderWidth: 1,
+    borderColor: '#C97D5D', padding: 12, marginTop: 10,
+  },
+  expertBannerText: { fontSize: 12, fontFamily: 'DMSans_400Regular', color: '#C97D5D', lineHeight: 18 },
 });

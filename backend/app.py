@@ -2,7 +2,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from services.gemini_service import identify_plant, get_plant_recommendations
-from services.inat_service import get_plant_requests #get_local_plants
+from services.inat_service import get_plant_requests
+from services.score_service import calculate_biodiversity_score
 
 load_dotenv()
 
@@ -45,6 +46,16 @@ def recommend():
         return jsonify({"error": "location is required"}), 400
 
     result = result = get_plant_recommendations(location)
+    return jsonify({"result": result})
+
+
+@app.route("/score", methods=["POST"])
+def score():
+    data = request.get_json()
+    plants = data.get("plants")
+    if not plants:
+        return jsonify({"error": "plants list is required"}), 400
+    result = calculate_biodiversity_score(plants)
     return jsonify({"result": result})
 
 

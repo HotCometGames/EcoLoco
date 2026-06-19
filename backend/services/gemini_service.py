@@ -21,6 +21,7 @@ def identify_plant(image_data, location):
     # identify plant and get all status information
     identify_response = client.chat.completions.create(
         model="gpt-4o-mini",
+        temperature=0,
         messages=[
             {
                 "role": "user",
@@ -99,6 +100,7 @@ respond only in JSON
         # for native or non-invasive plants, get beneficial climate actions
         actions_response = client.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0,
             messages=[
                 {
                     "role": "user",

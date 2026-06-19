@@ -122,8 +122,9 @@ function AnimatedCard({ item, index }) {
 }
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
-export default function RecommendationScreen({ navigation }) {
-  const [zipCode, setZipCode] = useState('');
+export default function RecommendationScreen({ navigation, route }) {
+  const prefillZip = route?.params?.prefillZip ?? '';
+  const [zipCode, setZipCode] = useState(prefillZip);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
 
@@ -132,15 +133,23 @@ export default function RecommendationScreen({ navigation }) {
 
   const [fontsLoaded] = useFonts({ Fraunces_700Bold, DMSans_400Regular, DMSans_700Bold });
 
-  async function handleRecommend() {
-    if (zipCode.length !== 5 || isNaN(zipCode)) {
+  // Auto-run if navigated here with a ZIP pre-filled
+  useEffect(() => {
+    if (prefillZip?.length === 5) {
+      handleRecommend(prefillZip);
+    }
+  }, [prefillZip]);
+
+  async function handleRecommend(zip) {
+    const target = zip ?? zipCode;
+    if (target.length !== 5 || isNaN(target)) {
       Alert.alert('Invalid ZIP', 'Please enter a valid 5-digit ZIP code.');
       return;
     }
     setLoading(true);
     setResults(null);
     try {
-      const data = await getPlantRecommendations(zipCode);
+      const data = await getPlantRecommendations(target);
       setResults(data.result);
     } catch (err) {
       console.error(err);
@@ -161,15 +170,6 @@ export default function RecommendationScreen({ navigation }) {
           <View style={styles.logoRow}>
             <Image source={LOGO} style={styles.logoImg} />
             <Text style={styles.logoText}>EcoLoco</Text>
-          </View>
-          <View style={styles.navLinks}>
-            <TouchableOpacity onPress={() => navigation?.navigate('Camera')}>
-              <Text style={styles.navLink}>Identification</Text>
-            </TouchableOpacity>
-            <View style={styles.navLinkActive}>
-              <Text style={styles.navLinkActiveText}>Recommendation</Text>
-              <View style={styles.navUnderline} />
-            </View>
           </View>
         </View>
 
@@ -196,7 +196,7 @@ export default function RecommendationScreen({ navigation }) {
           />
           <TouchableOpacity
             style={[styles.btn, (zipCode.length !== 5 || loading) && styles.btnDisabled]}
-            onPress={handleRecommend}
+            onPress={() => handleRecommend()}
             disabled={loading || zipCode.length !== 5}
           >
             {loading
@@ -244,11 +244,7 @@ const styles = StyleSheet.create({
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logoImg: { width: 40, height: 40, resizeMode: 'contain' },
   logoText: { fontSize: 20, fontFamily: 'Fraunces_700Bold', color: DARK_GREEN, letterSpacing: 0.3 },
-  navLinks: { flexDirection: 'row', gap: 20, alignItems: 'center' },
-  navLink: { fontSize: 12, fontFamily: 'DMSans_400Regular', color: TEXT_BODY },
-  navLinkActive: { alignItems: 'center', gap: 4 },
-  navLinkActiveText: { fontSize: 12, fontFamily: 'DMSans_700Bold', color: DARK_GREEN },
-  navUnderline: { height: 2, width: '100%', backgroundColor: DARK_GREEN, borderRadius: 1 },
+
 
   divider: { height: 1, backgroundColor: BORDER },
 

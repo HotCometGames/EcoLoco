@@ -179,14 +179,6 @@ export default function HomeScreen({ navigation }) {
             <Image source={LOGO} style={styles.logoImg} />
             <Text style={styles.logoText}>EcoLoco</Text>
           </View>
-          <View style={styles.navLinks}>
-            <TouchableOpacity onPress={() => navigation?.navigate('Camera')}>
-              <Text style={styles.navLink}>Identification</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation?.navigate('Recommend')}>
-              <Text style={styles.navLink}>Recommendations</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         <Divider />
@@ -304,17 +296,6 @@ const styles = StyleSheet.create({
     color: DARK_GREEN,
     letterSpacing: 0.3,
   },
-  navLinks: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  navLink: {
-    fontSize: 12,
-    fontFamily: 'DMSans_400Regular',
-    color: TEXT_BODY,
-    letterSpacing: 0.2,
-  },
-
   // ── Divider ──
   dividerLine: {
     height: 1,
