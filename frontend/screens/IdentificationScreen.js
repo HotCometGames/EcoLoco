@@ -345,6 +345,14 @@ export default function IdentificationScreen({ navigation }) {
               </View>
             )}
 
+            {result.inat_note && (
+              <View style={styles.inatBanner}>
+                <Text style={styles.inatBannerText}>
+                  ◎ iNaturalist: {result.inat_note}
+                </Text>
+              </View>
+            )}
+
             {/* Actions */}
             {result.actions?.length > 0 && (
               <View style={styles.actionsSection}>
@@ -489,4 +497,9 @@ const styles = StyleSheet.create({
     borderColor: '#C97D5D', padding: 12, marginTop: 10,
   },
   expertBannerText: { fontSize: 12, fontFamily: 'DMSans_400Regular', color: '#C97D5D', lineHeight: 18 },
+  inatBanner: {
+    backgroundColor: '#faf3e0', borderRadius: 10, borderWidth: 1,
+    borderColor: '#c49a3a', padding: 12, marginTop: 8,
+  },
+  inatBannerText: { fontSize: 12, fontFamily: 'DMSans_400Regular', color: '#c49a3a', lineHeight: 18 },
 });

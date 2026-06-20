@@ -1,4 +1,6 @@
 import json
+import math
+import requests
 from openai import OpenAI
 from dotenv import load_dotenv
 from services.inat_service import get_plant_requests
@@ -7,6 +9,15 @@ import os
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+def _haversine_miles(lat1, lng1, lat2, lng2):
+    R = 3958.8
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
 
 
 def identify_plant(image_data, location):
@@ -87,6 +98,34 @@ respond only in JSON
     wildlife_support = identify_data["wildlife_support"]
     wildlife_support_reason = identify_data.get("wildlife_support_reason", "")
 
+    # ── iNaturalist cross-check ────────────────────────────────────────────
+    inat_note = None
+    try:
+        geo_resp = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"postalcode": location, "country": "US", "format": "json", "limit": 1},
+            headers={"User-Agent": "EcoLoco/1.0 (jhabhaskar1205@gmail.com)"},
+            timeout=5,
+        )
+        geo_data = geo_resp.json()
+        if geo_data:
+            user_lat = float(geo_data[0]["lat"])
+            user_lng = float(geo_data[0]["lon"])
+            observations = get_plant_requests(plant_name)
+            nearby = sum(
+                1 for obs in observations
+                if _haversine_miles(user_lat, user_lng, obs["latitude"], obs["longitude"]) <= 200
+            )
+            if nearby >= 10:
+                pass  # sufficient local data — keep GPT confidence as-is
+            elif nearby >= 1:
+                confidence = max(0.0, round(confidence - 0.1, 2))
+            else:
+                confidence = max(0.0, round(confidence - 0.2, 2))
+                inat_note = "Rarely observed in your region — verify before acting"
+    except Exception:
+        pass  # iNat check failed — keep original confidence unchanged
+
     # get climate actions based on plant status
     actions = []
     
@@ -141,6 +180,7 @@ respond only in JSON
         "wildlife_support": wildlife_support,
         "wildlife_support_reason": wildlife_support_reason,
         "confidence": confidence,
+        "inat_note": inat_note,
         "actions": actions
     }
 
