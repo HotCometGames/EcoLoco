@@ -2,11 +2,13 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Image, useWindowDimensions, Animated, Easing, Pressable, Linking,
+  Alert, TextInput,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useFonts } from 'expo-font';
 import { Fraunces_700Bold } from '@expo-google-fonts/fraunces';
 import { DMSans_400Regular, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
-import { getScore, getPlantRecommendations } from '../services/geminiService';
+import { getScore, getPlantRecommendations, generateLetter } from '../services/geminiService';
 
 const CREAM      = '#f5f0e8';
 const DARK_GREEN = '#1e3a1e';
@@ -203,6 +205,98 @@ const ac = StyleSheet.create({
   label:    { fontSize: 10, fontFamily: 'DMSans_700Bold', color: TEXT_MUTED, letterSpacing: 1.2, marginBottom: 5 },
   body:     { fontSize: 13, fontFamily: 'DMSans_400Regular', color: TEXT_BODY, lineHeight: 21 },
 });
+
+// ─── Letter Generator ────────────────────────────────────────────────────────
+function LetterGenerator({ recs, score, zipCode }) {
+  const [selected,      setSelected]      = useState(new Set([0, 1, 2]));
+  const [letterLoading, setLetterLoading] = useState(false);
+  const [letter,        setLetter]        = useState(null);
+  const [editedLetter,  setEditedLetter]  = useState('');
+  const [copied,        setCopied]        = useState(false);
+
+  function togglePlant(i) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+    setLetter(null);
+    setEditedLetter('');
+  }
+
+  async function handleGenerate() {
+    const plantNames = recs.filter((_, i) => selected.has(i)).map(r => r.plant_name);
+    if (plantNames.length === 0) return;
+    setLetterLoading(true);
+    setLetter(null);
+    setEditedLetter('');
+    try {
+      const data = await generateLetter(plantNames, score, zipCode);
+      setLetter(data.result);
+      setEditedLetter(data.result);
+    } catch {
+      Alert.alert('Error', 'Could not generate letter. Please try again.');
+    } finally {
+      setLetterLoading(false);
+    }
+  }
+
+  const anySelected = recs.some((_, i) => selected.has(i));
+
+  return (
+    <View style={styles.letterSection}>
+      <Text style={styles.letterTitle}>Draft Letter to Administration</Text>
+      <Text style={styles.letterSubtitle}>
+        Select plants to include, then generate a ready-to-personalise letter.
+      </Text>
+
+      {recs.map((rec, i) => (
+        <TouchableOpacity key={i} style={styles.checkRow} onPress={() => togglePlant(i)}>
+          <View style={[styles.checkbox, selected.has(i) && styles.checkboxChecked]}>
+            {selected.has(i) && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.checkLabel} numberOfLines={1}>{rec.plant_name}</Text>
+        </TouchableOpacity>
+      ))}
+
+      <TouchableOpacity
+        style={[styles.letterBtn, (!anySelected || letterLoading) && styles.letterBtnDisabled]}
+        onPress={handleGenerate}
+        disabled={!anySelected || letterLoading}
+      >
+        {letterLoading
+          ? <ActivityIndicator color={CREAM} size="small" />
+          : <Text style={styles.letterBtnText}>Generate Letter for Administration</Text>
+        }
+      </TouchableOpacity>
+
+      {letter && (
+        <View style={styles.letterCard}>
+          <Text style={styles.letterEditHint}>Tap to edit — fill in the bracketed fields</Text>
+          <TextInput
+            multiline
+            scrollEnabled={false}
+            value={editedLetter}
+            onChangeText={setEditedLetter}
+            style={styles.letterInput}
+            textAlignVertical="top"
+          />
+          <TouchableOpacity
+            style={styles.copyBtn}
+            onPress={async () => {
+              await Clipboard.setStringAsync(editedLetter);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+          >
+            <Text style={styles.copyBtnText}>{copied ? 'Copied!' : 'Copy Letter'}</Text>
+          </TouchableOpacity>
+          <Text style={styles.letterNote}>Review and personalise before sending.</Text>
+        </View>
+      )}
+    </View>
+  );
+}
 
 // ─── AuditResultsScreen ───────────────────────────────────────────────────────
 export default function AuditResultsScreen({ route, navigation }) {
@@ -527,6 +621,15 @@ export default function AuditResultsScreen({ route, navigation }) {
                       )}
                     </View>
                   )}
+
+                  {/* ── Draft Letter ── */}
+                  {!recsLoading && recs.length >= 1 && (
+                    <LetterGenerator
+                      recs={recs.slice(0, 3)}
+                      score={scoreData.score}
+                      zipCode={zipCode}
+                    />
+                  )}
                 </View>
               </FadeIn>
             )}
@@ -664,4 +767,54 @@ const styles = StyleSheet.create({
   ctaBtnText:       { fontSize: 15, fontFamily: 'DMSans_700Bold', color: CREAM },
   ctaSecondary:     { paddingVertical: 10 },
   ctaSecondaryText: { fontSize: 13, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED },
+
+  letterSection: {
+    marginTop: 28, paddingTop: 24, borderTopWidth: 1, borderTopColor: BORDER,
+  },
+  letterTitle: {
+    fontSize: 20, fontFamily: 'Fraunces_700Bold', color: DARK_GREEN, marginBottom: 6,
+  },
+  letterSubtitle: {
+    fontSize: 12, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED,
+    lineHeight: 18, marginBottom: 16,
+  },
+  checkRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12,
+  },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 1.5, borderColor: BORDER,
+    backgroundColor: CREAM, alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxChecked:  { backgroundColor: SOFT_GREEN, borderColor: SOFT_GREEN },
+  checkmark:        { fontSize: 13, color: CREAM, fontFamily: 'DMSans_700Bold' },
+  checkLabel:       { flex: 1, fontSize: 14, fontFamily: 'DMSans_400Regular', color: DARK_GREEN },
+  letterBtn: {
+    marginTop: 12, backgroundColor: DARK_GREEN, borderRadius: 10,
+    paddingVertical: 15, alignItems: 'center',
+  },
+  letterBtnDisabled: { opacity: 0.45 },
+  letterBtnText:     { fontSize: 15, fontFamily: 'DMSans_700Bold', color: CREAM },
+  letterCard: {
+    marginTop: 16, backgroundColor: CARD_BG, borderRadius: 14,
+    borderWidth: 1, borderColor: BORDER, padding: 20,
+  },
+  letterEditHint: {
+    fontSize: 11, fontFamily: 'DMSans_400Regular', color: TEXT_MUTED,
+    fontStyle: 'italic', marginBottom: 10,
+  },
+  letterInput: {
+    fontSize: 13, fontFamily: 'DMSans_400Regular', color: TEXT_BODY,
+    lineHeight: 22, backgroundColor: LIGHT_BG,
+    borderRadius: 8, padding: 12, minHeight: 520,
+  },
+  copyBtn: {
+    marginTop: 16, borderWidth: 1.5, borderColor: DARK_GREEN,
+    borderRadius: 10, paddingVertical: 12, alignItems: 'center',
+  },
+  copyBtnText: { fontSize: 13, fontFamily: 'DMSans_700Bold', color: DARK_GREEN },
+  letterNote: {
+    marginTop: 10, fontSize: 11, fontFamily: 'DMSans_400Regular',
+    color: TEXT_MUTED, textAlign: 'center', fontStyle: 'italic',
+  },
 });

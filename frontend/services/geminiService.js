@@ -32,3 +32,12 @@ export async function getPlantRecommendations(location) {
   });
   return parseResponse(res);
 }
+
+export async function generateLetter(plantNames, score, zipCode) {
+  const res = await fetch(`${API_URL}/letter`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plant_names: plantNames, score, zip_code: zipCode }),
+  });
+  return parseResponse(res);
+}

@@ -189,3 +189,56 @@ Rank all 11 highest wildlife_support first. No markdown, no backticks, return on
         raw = raw[3:-3].strip()
 
     return json.loads(raw)
+
+
+def generate_letter(plant_names: list, score: int, zip_code: str):
+    # Format plant list naturally
+    if len(plant_names) == 1:
+        plant_list  = plant_names[0]
+        adding_word = "Adding it"
+    elif len(plant_names) == 2:
+        plant_list  = f"{plant_names[0]} and {plant_names[1]}"
+        adding_word = "Adding them"
+    else:
+        plant_list  = ", ".join(plant_names[:-1]) + f", and {plant_names[-1]}"
+        adding_word = "Adding them"
+
+    # GPT generates only the benefit sentence(s)
+    benefit_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"Write 1–2 sentences explaining why the following native plant(s) "
+                f"help local wildlife in ZIP code {zip_code}: {plant_list}. "
+                "Be specific — mention pollinators, birds, or insects they support. "
+                "Return only the sentences, no preamble or trailing text."
+            )
+        }]
+    )
+    benefit = benefit_response.choices[0].message.content.strip()
+
+    letter = (
+        f"Dear [PRINCIPAL_NAME],\n\n"
+        f"The [SCHOOL_NAME] eco-club has been studying the plants growing around our campus, "
+        f"and we'd like to propose a change that could make a real difference for local wildlife.\n\n"
+        f"Right now, much of our schoolyard is planted with species that do very little for the "
+        f"insects, birds, and pollinators that depend on this area. We audited our grounds and our "
+        f"campus scored {score} out of 100 on biodiversity, a measure of how well our plants "
+        f"actually support native wildlife. We think we can do better, and it starts with a few changes.\n\n"
+        f"We're requesting permission to add the following native species, well suited to our region "
+        f"(ZIP {zip_code}): {plant_list}. {benefit} "
+        f"{adding_word} would raise our biodiversity score and create real, living habitat that "
+        f"students can watch grow and learn from all year.\n\n"
+        f"We researched this using EcoLoco, a tool that identifies plants and ranks them by how much "
+        f"they help the local ecosystem. We'd be glad to share our full audit and find a time to talk "
+        f"through next steps.\n\n"
+        f"Thank you for considering this. A small change to our campus could leave a lasting mark "
+        f"on the wildlife around it.\n\n"
+        f"Sincerely,\n\n"
+        f"[STUDENT_NAME]\n\n"
+        f"[SCHOOL_NAME] Eco-Club"
+    )
+
+    return letter
