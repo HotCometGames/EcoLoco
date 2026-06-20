@@ -150,6 +150,7 @@ export default function HomeScreen({ navigation }) {
     ]).start()
   }, [])
 
+  const tagAnim = useFadeUp(680)
   const s1Anim = useFadeUp(200)
   const s2Anim = useFadeUp(320)
   const s3Anim = useFadeUp(440)
@@ -194,6 +195,9 @@ export default function HomeScreen({ navigation }) {
             </Animated.Text>
           </View>
           <Ornament delay={500} />
+          <Animated.Text style={[styles.tagline, tagAnim]}>
+            Bring your local ecosystem back to life, one plant at a time.
+          </Animated.Text>
         </View>
 
         <Divider />
@@ -326,6 +330,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Fraunces_700Bold_Italic',
     color: DARK_GREEN,
     lineHeight: 46,
+  },
+
+  tagline: {
+    fontSize: 15,
+    fontFamily: 'DMSans_700Bold',
+    color: DARK_GREEN,
+    textAlign: 'center',
+    marginTop: 20,
+    lineHeight: 23,
+    paddingHorizontal: 16,
   },
 
   // ── Ornament ──
